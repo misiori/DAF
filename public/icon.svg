@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e40af" stop-opacity="0.8" />
+      <stop offset="70%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#030712" />
+    </radialGradient>
+    <linearGradient id="blueGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGlow)" />
+  <rect width="496" height="496" x="8" y="8" rx="92" fill="none" stroke="#3b82f6" stroke-width="4" stroke-opacity="0.4" />
+
+  <!-- Cyber Hexagon Grid -->
+  <polygon points="256,60 420,155 420,345 256,440 92,345 92,155" fill="none" stroke="#2563eb" stroke-width="6" stroke-dasharray="16, 12" />
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#60a5fa" stroke-width="3" stroke-opacity="0.5" />
+
+  <!-- Ant Body (Safe-zone centered) -->
+  <g transform="translate(0, 0)">
+    <!-- Legs -->
+    <path d="M210,230 L130,170 M210,256 L120,256 M210,280 L130,340" stroke="#93c5fd" stroke-width="8" stroke-linecap="round" />
+    <path d="M302,230 L382,170 M302,256 L392,256 M302,280 L382,340" stroke="#93c5fd" stroke-width="8" stroke-linecap="round" />
+
+    <!-- Abdomen -->
+    <ellipse cx="256" cy="330" rx="42" ry="60" fill="url(#blueGlow)" stroke="#93c5fd" stroke-width="4" />
+    
+    <!-- Thorax -->
+    <ellipse cx="256" cy="256" rx="28" ry="32" fill="#1e3a8a" stroke="#60a5fa" stroke-width="4" />
+
+    <!-- Head -->
+    <circle cx="256" cy="180" r="30" fill="url(#blueGlow)" stroke="#93c5fd" stroke-width="4" />
+
+    <!-- Mandibles -->
+    <path d="M242,155 Q235,120 220,130" stroke="#60a5fa" stroke-width="6" stroke-linecap="round" fill="none" />
+    <path d="M270,155 Q277,120 292,130" stroke="#60a5fa" stroke-width="6" stroke-linecap="round" fill="none" />
+
+    <!-- Eyes (Glowing Cyan) -->
+    <circle cx="242" cy="172" r="6" fill="#38bdf8" />
+    <circle cx="270" cy="172" r="6" fill="#38bdf8" />
+    <circle cx="242" cy="172" r="2" fill="#ffffff" />
+    <circle cx="270" cy="172" r="2" fill="#ffffff" />
+  </g>
+</svg>

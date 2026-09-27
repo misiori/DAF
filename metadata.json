@@ -1,0 +1,6 @@
+{
+  "name": "Dangerous Ant Farm",
+  "description": "Rhythm-dodge arcade game where hordes of dangerous ants chase your cursor through hazardous obstacles and speed portals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
