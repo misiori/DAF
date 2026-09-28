@@ -112,18 +112,6 @@ export const recordChallengeEvent = (
           return;
         }
         break;
-      case 'nuke_anthills':
-        if (event.type === 'nuke_anthills') {
-          qualifies = true;
-          increment = event.count || 1;
-        }
-        break;
-      case 'survive_corridor':
-        if (event.type === 'survive_corridor') {
-          qualifies = true;
-          increment = event.count || 1;
-        }
-        break;
       case 'score_milestone':
         if (event.type === 'score_milestone') {
           qualifies = true;

@@ -9,7 +9,6 @@ import {
   Lock,
   CheckCircle2,
   X,
-  Zap,
 } from 'lucide-react';
 import {
   LEVELS,
@@ -47,8 +46,6 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
       ? LEVELS
       : filterDifficulty === 'free'
       ? [FREE_MODE_LEVEL]
-      : filterDifficulty === 'corridor'
-      ? LEVELS.filter((lvl) => lvl.hasCorridor || lvl.isCorridorMode)
       : LEVELS.filter((lvl) => lvl.difficulty.toLowerCase() === filterDifficulty);
 
   const selectedProgress =
@@ -84,11 +81,11 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
 
         {/* Minimal Progress Indicator */}
         <div className="flex items-center gap-2 font-['Patrick_Hand'] text-sm text-neutral-400">
-          <span>{beatenLevelsCount} / {LEVELS.length} beaten</span>
+          <span>{beatenLevelsCount} / 23 beaten</span>
           <div className="w-16 bg-neutral-800 h-1.5 rounded-full overflow-hidden">
             <div
               className="h-full bg-neutral-300 transition-all"
-              style={{ width: `${(beatenLevelsCount / LEVELS.length) * 100}%` }}
+              style={{ width: `${(beatenLevelsCount / 23) * 100}%` }}
             />
           </div>
         </div>
@@ -100,10 +97,9 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
 
       {/* Filter Tabs by Difficulty - lowercase */}
       <div className="relative z-10 flex items-center gap-2 overflow-x-auto py-2.5 sm:py-3 shrink-0 no-scrollbar">
-        {['all', 'easy', 'normal', 'hard', 'harder', 'insane', 'crazy', 'corridor', 'free'].map((diff) => {
+        {['all', 'easy', 'normal', 'hard', 'harder', 'insane', 'crazy', 'free'].map((diff) => {
           const isActive = filterDifficulty === diff;
           const isFree = diff === 'free';
-          const isCorridor = diff === 'corridor';
           return (
             <button
               key={diff}
@@ -112,9 +108,6 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                 setFilterDifficulty(diff);
                 if (diff === 'free') {
                   setSelectedLevel(FREE_MODE_LEVEL);
-                } else if (diff === 'corridor') {
-                  const targetList = LEVELS.filter((l) => l.hasCorridor || l.isCorridorMode);
-                  if (targetList.length > 0) setSelectedLevel(targetList[0]);
                 } else {
                   const targetList =
                     diff === 'all'
@@ -138,11 +131,6 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                   ) : (
                     <Lock className="w-3 h-3 text-neutral-500" />
                   )}
-                </>
-              ) : isCorridor ? (
-                <>
-                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>corridor mode</span>
                 </>
               ) : diff === 'crazy' ? (
                 <>
@@ -179,23 +167,16 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                     <span className="font-['Patrick_Hand'] text-sm text-neutral-500">
                       {isFree ? '∞' : lvl.id < 10 ? `#0${lvl.id}` : `#${lvl.id}`}
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      {lvl.hasCorridor && (
-                        <span className="text-[10px] font-['Patrick_Hand'] lowercase px-1.5 py-0.5 rounded-full border border-cyan-500/40 text-cyan-400 bg-cyan-500/10">
-                          corridor
-                        </span>
-                      )}
-                      <span
-                        className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border"
-                        style={{
-                          color: diffColor,
-                          borderColor: `${diffColor}40`,
-                          background: `${diffColor}10`,
-                        }}
-                      >
-                        {lvl.difficulty.toLowerCase()}
-                      </span>
-                    </div>
+                    <span
+                      className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border"
+                      style={{
+                        color: diffColor,
+                        borderColor: `${diffColor}40`,
+                        background: `${diffColor}10`,
+                      }}
+                    >
+                      {lvl.difficulty.toLowerCase()}
+                    </span>
                   </div>
 
                   <h3 className="font-['Caveat'] text-2xl font-bold text-neutral-100 group-hover:text-white truncate lowercase">
