@@ -155,12 +155,12 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
             const diffColor = DIFFICULTY_COLORS[lvl.difficulty] || '#3b82f6';
 
             return (
-              <div
+              <motion.div
                 key={lvl.id}
-                role="button"
-                tabIndex={0}
                 onClick={() => handleLevelClick(lvl)}
-                className="group relative p-3 sm:p-3.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border transition-all active:scale-95 hover:scale-[1.02] cursor-pointer flex flex-col justify-between bg-neutral-900/40 border-neutral-800/80 hover:bg-neutral-900/80 hover:border-neutral-500 shadow-sm"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="group relative p-3 sm:p-3.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border transition-all cursor-pointer flex flex-col justify-between bg-neutral-900/40 border-neutral-800/80 hover:bg-neutral-900/80 hover:border-neutral-500 shadow-sm"
               >
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-1">
@@ -210,7 +210,7 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                     <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

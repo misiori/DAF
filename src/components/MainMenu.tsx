@@ -63,14 +63,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       mouseX = e.clientX;
       mouseY = e.clientY;
     };
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches && e.touches[0]) {
-        mouseX = e.touches[0].clientX;
-        mouseY = e.touches[0].clientY;
-      }
-    };
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
     const antCount = 35;
     const ants = Array.from({ length: antCount }).map(() => ({
@@ -144,7 +137,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
     };
   }, []);
 
@@ -163,7 +155,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenProfile();
           }}
-          className="flex items-center gap-2.5 p-1.5 pr-3.5 rounded-[220px_20px_200px_25px/20px_220px_25px_200px] bg-neutral-900/60 hover:bg-neutral-900/90 active:scale-95 border border-neutral-700/60 hover:border-neutral-400 transition-all cursor-pointer backdrop-blur-sm"
+          className="flex items-center gap-2.5 p-1.5 pr-3.5 rounded-[220px_20px_200px_25px/20px_220px_25px_200px] bg-neutral-900/60 hover:bg-neutral-900/90 border border-neutral-700/60 hover:border-neutral-400 transition-all cursor-pointer backdrop-blur-sm"
         >
           <div className="relative shrink-0">
             {profile.avatar_url ? (
@@ -197,7 +189,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               sound.playClick();
               onToggleMute();
             }}
-            className="p-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/60 hover:bg-neutral-900/90 active:scale-95 border border-neutral-700/60 hover:border-neutral-400 text-neutral-400 hover:text-white transition-all cursor-pointer"
+            className="p-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/60 hover:bg-neutral-900/90 border border-neutral-700/60 hover:border-neutral-400 text-neutral-400 hover:text-white transition-all cursor-pointer"
             title={isMuted ? 'unmute' : 'mute'}
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-neutral-300" />}
@@ -218,16 +210,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </motion.h1>
 
         {/* Just a play icon, carelessly circled */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1, rotate: -2 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => {
             sound.playClick();
             onPlayClick();
           }}
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] border-2 border-neutral-300/80 hover:border-white bg-neutral-900/40 hover:bg-neutral-800/60 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 hover:scale-105 cursor-pointer group"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] border-2 border-neutral-300/80 hover:border-white bg-neutral-900/40 hover:bg-neutral-800/60 text-white flex items-center justify-center shadow-lg transition-all cursor-pointer group"
           title="play"
         >
           <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white ml-1 transition-transform group-hover:scale-110" />
-        </button>
+        </motion.button>
       </div>
 
       {/* Bottom Menu Buttons: skins, challenges, profile — handwritten & carelessly circled */}
@@ -237,7 +231,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenSkins();
           }}
-          className="px-5 py-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/50 hover:bg-neutral-900/90 active:scale-95 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm"
+          className="px-5 py-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
           skins
         </button>
@@ -247,7 +241,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenDailyChallenges();
           }}
-          className="relative px-5 py-2 rounded-[220px_25px_200px_18px/22px_210px_20px_225px] bg-neutral-900/50 hover:bg-neutral-900/90 active:scale-95 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm"
+          className="relative px-5 py-2 rounded-[220px_25px_200px_18px/22px_210px_20px_225px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
           challenges
           {claimableCount > 0 && (
@@ -260,7 +254,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenProfile();
           }}
-          className="px-5 py-2 rounded-[240px_18px_230px_20px/18px_235px_18px_240px] bg-neutral-900/50 hover:bg-neutral-900/90 active:scale-95 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm"
+          className="px-5 py-2 rounded-[240px_18px_230px_20px/18px_235px_18px_240px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
           profile
         </button>

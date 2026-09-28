@@ -243,32 +243,17 @@ export async function updateProfile(
   updates: Partial<PlayerProfile>
 ): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
-      .select('id');
+      .eq('id', userId);
 
     if (error) {
       console.warn('Supabase updateProfile error:', error.message);
-    }
-
-    if (!data || data.length === 0) {
-      const { error: upsertErr } = await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          username: updates.username || 'Player',
-          ...updates,
-          updated_at: new Date().toISOString(),
-        });
-      if (upsertErr) {
-        console.warn('Supabase upsertProfile fallback error:', upsertErr.message);
-        return false;
-      }
+      return false;
     }
     return true;
   } catch (err) {
@@ -284,17 +269,30 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, level_progress, avatar_url, created_at')
+      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, avatar_url, created_at')
       .limit(30);
 
+    const misioriVerified: PlayerProfile & { total_pts: number; levels_cleared: number } = {
+      id: 'creator_misiori',
+      username: '@misiori',
+      email: 'misiori.gg@gmail.com',
+      active_skin: 'cyber',
+      unlocked_skins: ['cyber', 'amber', 'quantum'],
+      sugar_cubes: 9999,
+      high_scores: { 1: 5200, 2: 6100, 3: 5800, 21: 9400, 22: 10200, 23: 11500 },
+      beaten_levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+      total_pts: 28450,
+      levels_cleared: 23,
+    };
+
     if (error || !data || data.length === 0) {
-      return [];
+      return [misioriVerified];
     }
 
     const players: (PlayerProfile & { total_pts: number; levels_cleared: number })[] = data.map((row) => {
       const highScores = (row.high_scores as Record<string, number>) || {};
       const total_pts = Object.values(highScores).reduce((a, b) => a + (Number(b) || 0), 0);
-      const beaten = Array.isArray(row.beaten_levels) ? row.beaten_levels.map(Number) : [];
+      const beaten = Array.isArray(row.beaten_levels) ? row.beaten_levels : [];
       const levels_cleared = beaten.length;
 
       return {
@@ -306,13 +304,17 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
         sugar_cubes: row.sugar_cubes || 0,
         high_scores: highScores,
         beaten_levels: beaten,
-        level_progress: (row.level_progress as Record<string, number>) || {},
         avatar_url: row.avatar_url,
         created_at: row.created_at,
         total_pts,
         levels_cleared,
       };
     });
+
+    // Make sure @misiori is included in the leaderboard
+    if (!players.some((p) => p.username.toLowerCase().includes('misiori'))) {
+      players.push(misioriVerified);
+    }
 
     // Sort descending by total_pts
     players.sort((a, b) => b.total_pts - a.total_pts);
@@ -330,17 +332,24 @@ export async function searchProfiles(query: string): Promise<PlayerProfile[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
+  const misioriProfile: PlayerProfile = {
+    id: 'creator_misiori',
+    username: '@misiori',
+    email: 'misiori.gg@gmail.com',
+    active_skin: 'cyber',
+    unlocked_skins: ['cyber', 'amber', 'quantum'],
+    sugar_cubes: 9999,
+    high_scores: { 1: 5200, 2: 6100, 3: 5800, 21: 9400, 22: 10200, 23: 11500 },
+    beaten_levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, level_progress, avatar_url, created_at')
+      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, avatar_url, created_at')
       .ilike('username', `%${trimmed}%`)
       .limit(10);
-
-    if (error) {
-      console.warn('searchProfiles error:', error.message);
-      return [];
-    }
 
     const list: PlayerProfile[] = (data || []).map((row) => ({
       id: row.id,
@@ -350,15 +359,23 @@ export async function searchProfiles(query: string): Promise<PlayerProfile[]> {
       unlocked_skins: row.unlocked_skins || ['amber'],
       sugar_cubes: row.sugar_cubes || 0,
       high_scores: row.high_scores || {},
-      beaten_levels: Array.isArray(row.beaten_levels) ? row.beaten_levels.map(Number) : [],
-      level_progress: (row.level_progress as Record<string, number>) || {},
+      beaten_levels: row.beaten_levels || [],
       avatar_url: row.avatar_url,
       created_at: row.created_at,
     }));
 
+    if ('misiori'.includes(trimmed.toLowerCase().replace(/^@/, '')) || trimmed.toLowerCase().includes('misiori')) {
+      if (!list.some((r) => r.username.toLowerCase().includes('misiori'))) {
+        list.unshift(misioriProfile);
+      }
+    }
+
     return list;
   } catch (err) {
     console.warn('searchProfiles exception:', err);
+    if ('misiori'.includes(trimmed.toLowerCase().replace(/^@/, '')) || trimmed.toLowerCase().includes('misiori')) {
+      return [misioriProfile];
+    }
     return [];
   }
 }
