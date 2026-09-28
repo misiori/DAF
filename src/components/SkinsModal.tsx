@@ -96,16 +96,16 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
               <Sparkles className="w-6 h-6" style={{ color: selectedPreview.color }} />
             </div>
             <div>
-              <h2 className="text-2xl font-black font-['Russo_One'] tracking-wide text-white">
-                CURSOR SKINS
+              <h2 className="text-3xl sm:text-4xl font-bold font-['Caveat'] tracking-wide text-neutral-100 lowercase">
+                skins
               </h2>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/80 border border-blue-500/30 rounded-xl text-blue-300 font-mono text-xs font-bold shadow-inner">
-              <Cookie className="w-4 h-4 text-blue-400" />
-              <span>{sugarCubes} Sugar</span>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-full text-neutral-300 font-['Patrick_Hand'] text-sm">
+              <Cookie className="w-3.5 h-3.5 text-amber-400" />
+              <span>{sugarCubes} sugar</span>
             </div>
 
             <button
@@ -113,7 +113,7 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
                 sound.playClick();
                 onClose();
               }}
-              className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -121,21 +121,21 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 py-3 overflow-x-auto border-b border-neutral-800/60 no-scrollbar">
-          {(['All', 'Owned', 'Common', 'Rare', 'Epic', 'Legendary', 'Mythic'] as RarityFilter[]).map((r) => {
-            const isSelected = filter === r;
+        <div className="flex items-center gap-1.5 py-2.5 overflow-x-auto border-b border-neutral-800/60 no-scrollbar">
+          {(['all', 'owned', 'common', 'rare', 'epic', 'legendary', 'mythic'] as const).map((r) => {
+            const isSelected = filter.toLowerCase() === r;
 
             return (
               <button
                 key={r}
                 onClick={() => {
                   sound.playClick();
-                  setFilter(r);
+                  setFilter(r === 'all' ? 'All' : r === 'owned' ? 'Owned' : (r.charAt(0).toUpperCase() + r.slice(1)) as RarityFilter);
                 }}
-                className={`px-3.5 py-1.5 rounded-xl font-mono text-xs font-bold tracking-wider whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] font-['Patrick_Hand'] text-base lowercase whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   isSelected
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                    : 'bg-neutral-800/70 text-neutral-400 hover:text-white hover:bg-neutral-800'
+                    ? 'bg-neutral-200 text-neutral-950 font-bold border border-white'
+                    : 'bg-neutral-900/60 text-neutral-400 hover:text-white border border-neutral-800'
                 }`}
               >
                 <span>{r}</span>
@@ -181,16 +181,16 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-xs sm:text-sm tracking-wide text-white truncate">
-                            {skin.name}
+                          <span className="font-['Patrick_Hand'] text-base tracking-wide text-white truncate lowercase">
+                            {skin.name.toLowerCase()}
                           </span>
                           {skin.rarity && (
                             <span
-                              className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-md border ${getRarityBadgeColor(
+                              className={`text-[10px] font-['Patrick_Hand'] lowercase px-1.5 py-0.2 rounded-md border ${getRarityBadgeColor(
                                 skin.rarity
                               )}`}
                             >
-                              {skin.rarity}
+                              {skin.rarity.toLowerCase()}
                             </span>
                           )}
                         </div>
@@ -199,17 +199,17 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
 
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       {isActive ? (
-                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-green-950 text-green-400 border border-green-700">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-['Patrick_Hand'] bg-emerald-950/60 text-emerald-400 border border-emerald-800 lowercase">
                           <Check className="w-3 h-3" />
-                          EQUIPPED
+                          equipped
                         </span>
                       ) : unlocked ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-neutral-800 text-neutral-400 group-hover:text-blue-300">
-                          OWNED
+                        <span className="px-2 py-0.5 rounded-full text-xs font-['Patrick_Hand'] bg-neutral-800 text-neutral-400 lowercase">
+                          owned
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[11px] font-mono text-blue-300 bg-blue-950/60 px-2 py-1 rounded-lg border border-blue-900/60">
-                          <Lock className="w-3 h-3 text-blue-400" />
+                        <span className="flex items-center gap-1 text-xs font-['Patrick_Hand'] text-neutral-300 bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-700 lowercase">
+                          <Lock className="w-3 h-3 text-neutral-400" />
                           {skin.cost}
                         </span>
                       )}
@@ -221,18 +221,18 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
           </div>
 
           {/* Right Live Test Pad & Details */}
-          <div className="lg:col-span-4 flex flex-col justify-between bg-neutral-950/90 rounded-2xl border border-blue-900/40 p-4">
+          <div className="lg:col-span-4 flex flex-col justify-between bg-neutral-950/90 rounded-2xl border border-neutral-800 p-4">
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono text-neutral-400 uppercase tracking-wider flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5 text-blue-400" />
-                  Live Reticle Test
+                <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase tracking-wider flex items-center gap-1">
+                  <Eye className="w-3.5 h-3.5 text-neutral-300" />
+                  reticle test
                 </span>
                 <span
-                  className="text-xs font-mono font-bold px-2 py-0.5 rounded-md"
+                  className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-md"
                   style={{ color: selectedPreview.color, background: `${selectedPreview.color}20` }}
                 >
-                  {selectedPreview.rarity || 'Common'}
+                  {(selectedPreview.rarity || 'common').toLowerCase()}
                 </span>
               </div>
 
@@ -240,9 +240,9 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
               <div
                 ref={previewAreaRef}
                 onMouseMove={handleMouseMove}
-                className="relative h-44 rounded-xl border border-dashed border-blue-800/40 bg-neutral-900/70 overflow-hidden cursor-none flex items-center justify-center select-none shadow-inner"
+                className="relative h-44 rounded-xl border border-dashed border-neutral-800 bg-neutral-900/70 overflow-hidden cursor-none flex items-center justify-center select-none shadow-inner"
               >
-                <div className="absolute inset-0 bg-[radial-gradient(#3b82f61a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(#ffffff08_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
 
                 {/* Simulated cursor following mouse */}
                 <div
@@ -259,8 +259,8 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
 
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-['Russo_One'] text-base text-white">
-                    {selectedPreview.name}
+                  <h3 className="font-['Caveat'] text-2xl font-bold text-white lowercase">
+                    {selectedPreview.name.toLowerCase()}
                   </h3>
                   <div className="flex items-center gap-1.5">
                     <span
@@ -284,13 +284,13 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
                     sound.playClick();
                     onSelectSkin(selectedPreview.id);
                   }}
-                  className={`w-full py-3.5 rounded-xl font-bold font-mono text-sm tracking-wider transition-all cursor-pointer ${
+                  className={`w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] font-['Patrick_Hand'] text-base lowercase tracking-wide transition-all cursor-pointer ${
                     activeSkinId === selectedPreview.id
-                      ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white shadow-lg shadow-blue-600/30 active:scale-95'
+                      ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
+                      : 'bg-neutral-100 hover:bg-white text-neutral-950 font-bold border border-white shadow-md active:scale-95'
                   }`}
                 >
-                  {activeSkinId === selectedPreview.id ? 'CURRENTLY EQUIPPED' : 'EQUIP CURSOR SKIN'}
+                  {activeSkinId === selectedPreview.id ? 'equipped' : 'use skin'}
                 </button>
               ) : (
                 <button
@@ -302,16 +302,16 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
                       sound.playHitSound();
                     }
                   }}
-                  className={`w-full py-3.5 rounded-xl font-bold font-mono text-sm tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  className={`w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] font-['Patrick_Hand'] text-base lowercase tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     sugarCubes >= selectedPreview.cost
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-blue-500/30 active:scale-95'
-                      : 'bg-neutral-800 text-neutral-500 hover:bg-neutral-800'
+                      ? 'bg-neutral-100 hover:bg-white text-neutral-950 font-bold border border-white shadow-md active:scale-95'
+                      : 'bg-neutral-800 text-neutral-500 hover:bg-neutral-800 border border-neutral-700'
                   }`}
                 >
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-3.5 h-3.5" />
                   {sugarCubes >= selectedPreview.cost
-                    ? `UNLOCK FOR ${selectedPreview.cost} SUGAR`
-                    : `NEED ${selectedPreview.cost - sugarCubes} MORE SUGAR`}
+                    ? `unlock for ${selectedPreview.cost} sugar`
+                    : `need ${selectedPreview.cost - sugarCubes} more sugar`}
                 </button>
               )}
             </div>

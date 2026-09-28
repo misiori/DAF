@@ -397,16 +397,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         className="relative w-full max-w-2xl bg-neutral-900 border border-blue-900/60 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-blue-950/40 overflow-hidden flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">
-              <User className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black font-['Russo_One'] tracking-wide text-white">
-                PLAYER PROFILE
-              </h2>
-            </div>
+        <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+          <div>
+            <h2 className="text-3xl sm:text-4xl font-bold font-['Caveat'] tracking-wide text-neutral-100 lowercase">
+              player profile
+            </h2>
           </div>
 
           <button
@@ -414,27 +409,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               sound.playClick();
               onClose();
             }}
-            className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation: Profile, Leaderboard, Search */}
-        <div className="flex items-center gap-2 mt-4 p-1 bg-neutral-950/80 rounded-2xl border border-neutral-800">
+        {/* Tab Navigation: profile, leaderboard, search */}
+        <div className="flex items-center gap-2 mt-3 p-1 bg-neutral-950/80 rounded-2xl border border-neutral-800">
           <button
             onClick={() => {
               sound.playClick();
               setTab('profile');
               setViewedPlayer(null);
             }}
-            className={`flex-1 py-2 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer ${
               tab === 'profile'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                ? 'bg-neutral-200 text-neutral-950 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            My Profile
+            profile
           </button>
           <button
             onClick={() => {
@@ -442,14 +437,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               setTab('leaderboard');
               setViewedPlayer(null);
             }}
-            className={`flex-1 py-2 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               tab === 'leaderboard'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                ? 'bg-neutral-200 text-neutral-950 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Trophy className="w-3.5 h-3.5" />
-            Leaderboard (PTS)
+            leaderboard
           </button>
           <button
             onClick={() => {
@@ -457,14 +451,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               setTab('search');
               setViewedPlayer(null);
             }}
-            className={`flex-1 py-2 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               tab === 'search'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                ? 'bg-neutral-200 text-neutral-950 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Search className="w-3.5 h-3.5" />
-            Search Players
+            search
           </button>
         </div>
 
@@ -561,9 +554,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                     {/* Avatar Upload / Remove Actions */}
                     <div className="flex items-center gap-2 mt-1.5 justify-center sm:justify-start">
-                      <label className="text-[11px] font-mono text-blue-400 hover:text-blue-300 underline cursor-pointer flex items-center gap-1">
+                      <label className="text-[11px] font-mono text-neutral-400 hover:text-white underline cursor-pointer flex items-center gap-1">
                         <Camera className="w-3 h-3" />
-                        {currentProfile.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+                        {currentProfile.avatar_url ? 'change avatar' : 'upload avatar'}
                         <input
                           type="file"
                           accept="image/*"
@@ -574,10 +567,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       {currentProfile.avatar_url && (
                         <button
                           onClick={handleRemoveAvatar}
-                          className="text-[11px] font-mono text-red-400 hover:text-red-300 underline cursor-pointer flex items-center gap-0.5 ml-2"
+                          className="text-[11px] font-mono text-neutral-400 hover:text-rose-400 underline cursor-pointer flex items-center gap-0.5 ml-2"
                         >
                           <Trash2 className="w-3 h-3" />
-                          Remove Avatar
+                          remove avatar
                         </button>
                       )}
                     </div>
@@ -586,44 +579,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {isLoggedIn ? (
                     <button
                       onClick={handleSignOut}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 font-mono text-xs font-bold transition-all cursor-pointer self-center sm:self-start"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 font-['Patrick_Hand'] text-xs transition-all cursor-pointer self-center sm:self-start"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      Sign Out
+                      sign out
                     </button>
                   ) : (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-neutral-800 text-neutral-400 border border-neutral-700 self-center sm:self-start">
-                      GUEST MODE
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-['Patrick_Hand'] bg-neutral-900 text-neutral-400 border border-neutral-800 self-center sm:self-start lowercase">
+                      guest
                     </span>
                   )}
                 </div>
 
-                {/* Stats Row: Active Skin, Sugar Cubes, PTS Quantity */}
+                {/* Stats Row: active skin, sugar, pts */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-neutral-800/80">
                   <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase block">Active Skin</span>
-                    <span className="text-xs font-bold font-mono" style={{ color: activeSkin.color }}>
-                      {activeSkin.name}
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">active skin</span>
+                    <span className="text-xs font-['Patrick_Hand'] lowercase" style={{ color: activeSkin.color }}>
+                      {activeSkin.name.toLowerCase()}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase block">Sugar Cubes</span>
-                    <span className="text-xs font-bold font-mono text-amber-400 flex items-center gap-1">
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar cubes</span>
+                    <span className="text-xs font-['Patrick_Hand'] text-amber-400 flex items-center gap-1 lowercase">
                       <Cookie className="w-3.5 h-3.5" />
                       {currentProfile.sugar_cubes}
                     </span>
                   </div>
 
                   <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase block">PTS Quantity</span>
-                    <span className="text-xs font-black font-mono text-blue-400 flex items-center gap-1">
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">points</span>
+                    <span className="text-xs font-['Patrick_Hand'] text-neutral-200 flex items-center gap-1 lowercase">
                       <Award className="w-3.5 h-3.5" />
-                      {totalPts.toLocaleString()} PTS
+                      {totalPts.toLocaleString()} pts
                     </span>
                     {bonusPts > 0 && (
-                      <span className="text-[9px] font-mono text-cyan-400 block mt-0.5">
-                        +{bonusPts.toLocaleString()} from Dailies
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-400 block mt-0.5 lowercase">
+                        +{bonusPts.toLocaleString()} from dailies
                       </span>
                     )}
                   </div>
@@ -631,44 +624,43 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </div>
 
-            {/* Chambers Beaten by Difficulty (Replaces level highscores) */}
+            {/* Chambers section */}
             <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-neutral-400 uppercase tracking-wider">
-                  <Trophy className="w-4 h-4 text-blue-400" />
-                  Chambers Cleared By Difficulty
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-['Patrick_Hand'] text-base text-neutral-300 lowercase">
+                  chambers
                 </div>
-                <div className="text-xs font-mono font-bold text-blue-400">
-                  Total Cleared: {totalChambersBeaten} / 23
+                <div className="font-['Patrick_Hand'] text-sm text-neutral-400 lowercase">
+                  total: {totalChambersBeaten} / 23
                 </div>
               </div>
 
               {/* Overall Progress Bar */}
-              <div className="w-full bg-neutral-950 h-2 rounded-full border border-neutral-800 mb-3 overflow-hidden">
+              <div className="w-full bg-neutral-950 h-1.5 rounded-full border border-neutral-800 mb-3 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-600 via-cyan-400 to-indigo-500 transition-all duration-300 rounded-full"
+                  className="h-full bg-neutral-300 transition-all duration-300 rounded-full"
                   style={{ width: `${(totalChambersBeaten / 23) * 100}%` }}
                 />
               </div>
 
               {/* Difficulty Breakdown Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {statsByDiff.map((stat) => (
                   <div
                     key={stat.difficulty}
-                    className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800 flex items-center justify-between"
+                    className="p-2.5 rounded-xl bg-neutral-950/60 border border-neutral-800 flex items-center justify-between"
                   >
                     <div>
-                      <div className="text-xs font-bold font-mono" style={{ color: stat.color }}>
-                        {stat.difficulty}
+                      <div className="text-xs font-['Patrick_Hand'] lowercase" style={{ color: stat.color }}>
+                        {stat.difficulty.toLowerCase()}
                       </div>
-                      <div className="text-[10px] font-mono text-neutral-500">
-                        {stat.beaten >= stat.total ? 'COMPLETE' : 'IN PROGRESS'}
+                      <div className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase">
+                        {stat.beaten >= stat.total ? 'completed' : 'in progress'}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-sm font-black font-mono text-white">
-                        {stat.beaten} <span className="text-neutral-500 font-normal">/ {stat.total}</span>
+                      <span className="text-xs font-['Patrick_Hand'] text-white">
+                        {stat.beaten} <span className="text-neutral-500">/ {stat.total}</span>
                       </span>
                     </div>
                   </div>
@@ -680,11 +672,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             {!isLoggedIn && (
               <div className="p-4 rounded-2xl bg-neutral-950/80 border border-neutral-800">
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-neutral-800">
-                  <span className="font-bold text-sm text-white">
-                    {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+                  <span className="font-['Patrick_Hand'] text-base text-white lowercase">
+                    {authMode === 'signin' ? 'sign in' : 'create account'}
                   </span>
 
-                  <div className="flex items-center gap-1 text-xs font-mono">
+                  <div className="flex items-center gap-1 font-['Patrick_Hand'] text-sm lowercase">
                     <button
                       onClick={() => {
                         setAuthMode('signin');
@@ -692,10 +684,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         setAuthSuccessMsg(null);
                       }}
                       className={`px-2.5 py-1 rounded-lg ${
-                        authMode === 'signin' ? 'bg-blue-600/30 text-blue-400 font-bold' : 'text-neutral-500'
+                        authMode === 'signin' ? 'bg-neutral-800 text-white font-bold' : 'text-neutral-500'
                       }`}
                     >
-                      Sign In
+                      sign in
                     </button>
                     <button
                       onClick={() => {
@@ -704,10 +696,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         setAuthSuccessMsg(null);
                       }}
                       className={`px-2.5 py-1 rounded-lg ${
-                        authMode === 'signup' ? 'bg-blue-600/30 text-blue-400 font-bold' : 'text-neutral-500'
+                        authMode === 'signup' ? 'bg-neutral-800 text-white font-bold' : 'text-neutral-500'
                       }`}
                     >
-                      Sign Up
+                      sign up
                     </button>
                   </div>
                 </div>
@@ -728,23 +720,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                 <form onSubmit={authMode === 'signin' ? handleSignIn : handleSignUp} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-mono text-neutral-400 mb-1">
-                      {authMode === 'signin' ? 'Username or Email' : 'Username'}
+                    <label className="block text-xs font-['Patrick_Hand'] text-neutral-400 mb-1 lowercase">
+                      {authMode === 'signin' ? 'username or email' : 'username'}
                     </label>
                     <input
                       type="text"
                       required
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
-                      placeholder={authMode === 'signin' ? 'Enter username or email' : 'Choose a username'}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-blue-500 font-mono"
+                      placeholder={authMode === 'signin' ? 'enter username or email' : 'choose a username'}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-neutral-400 font-mono"
                     />
                   </div>
 
                   {authMode === 'signup' && (
                     <div>
-                      <label className="block text-xs font-mono text-neutral-400 mb-1">
-                        Email Address (requires verification)
+                      <label className="block text-xs font-['Patrick_Hand'] text-neutral-400 mb-1 lowercase">
+                        email address
                       </label>
                       <input
                         type="email"

@@ -2,20 +2,14 @@ import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import {
   Play,
-  ShoppingBag,
-  Palette,
-  User,
   Volume2,
   VolumeX,
-  Sparkles,
-  Flame,
   CheckCircle2,
 } from 'lucide-react';
 import { PlayerProfile } from '../types/game';
 import { SkinRenderer } from './SkinRenderer';
 import { sound } from '../lib/audio';
 import { PWAInstallButton } from './PWAInstallButton';
-import { SKINS } from '../lib/constants';
 import { getClaimableCount } from '../lib/dailyChallenges';
 
 export const isMisioriUser = (username?: string, email?: string) => {
@@ -26,7 +20,6 @@ export const isMisioriUser = (username?: string, email?: string) => {
 interface MainMenuProps {
   profile: PlayerProfile;
   onPlayClick: () => void;
-  onOpenShop: () => void;
   onOpenSkins: () => void;
   onOpenProfile: () => void;
   onOpenDailyChallenges: () => void;
@@ -37,7 +30,6 @@ interface MainMenuProps {
 export const MainMenu: React.FC<MainMenuProps> = ({
   profile,
   onPlayClick,
-  onOpenShop,
   onOpenSkins,
   onOpenProfile,
   onOpenDailyChallenges,
@@ -46,7 +38,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Background Canvas: Ants running around dynamically in the terrarium!
+  // Background Canvas: Minimal subtle ambient ants crawling gently
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -73,71 +65,42 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     };
     window.addEventListener('mousemove', handleMouseMove);
 
-    // Terrarium ants running freely in the background
-    const antCount = 65;
+    const antCount = 35;
     const ants = Array.from({ length: antCount }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 2.5,
-      vy: (Math.random() - 0.5) * 2.5,
-      size: Math.random() * 3 + 6,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: (Math.random() - 0.5) * 1.5,
+      size: Math.random() * 2 + 5,
       legPhase: Math.random() * 20,
-      color: Math.random() > 0.4 ? '#3b82f6' : Math.random() > 0.5 ? '#1d4ed8' : '#06b6d4',
-      carryingFood: Math.random() > 0.7,
-    }));
-
-    // Food crumbs scattered around
-    const crumbs = Array.from({ length: 25 }).map(() => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      size: Math.random() * 3 + 2,
+      opacity: Math.random() * 0.35 + 0.15,
     }));
 
     const render = () => {
-      // Clear with dark blue-black underground gradient
-      ctx.fillStyle = '#050c18';
+      ctx.fillStyle = '#090a0f';
       ctx.fillRect(0, 0, width, height);
 
-      // Cyber terrarium sand / specks
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.04)';
-      for (let i = 0; i < 40; i++) {
-        ctx.beginPath();
-        ctx.arc((i * 123) % width, (i * 321) % height, (i % 4) + 1, 0, Math.PI * 2);
-        ctx.fill();
+      // Soft faint grid dots
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+      for (let x = 30; x < width; x += 40) {
+        for (let y = 30; y < height; y += 40) {
+          ctx.fillRect(x, y, 1.5, 1.5);
+        }
       }
 
-      // Draw crumbs (blue bio-luminescent sugar)
-      ctx.fillStyle = 'rgba(96, 165, 250, 0.7)';
-      crumbs.forEach((c) => {
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Update and draw ants
+      // Draw subtle minimalistic background ants
       ants.forEach((ant) => {
         const dx = mouseX - ant.x;
         const dy = mouseY - ant.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist < 150) {
-          ant.vx -= (dx / dist) * 0.25;
-          ant.vy -= (dy / dist) * 0.25;
-        } else {
-          ant.vx += (Math.random() - 0.5) * 0.3;
-          ant.vy += (Math.random() - 0.5) * 0.3;
-        }
-
-        const spd = Math.hypot(ant.vx, ant.vy);
-        const maxSpd = 3.5;
-        if (spd > maxSpd) {
-          ant.vx = (ant.vx / spd) * maxSpd;
-          ant.vy = (ant.vy / spd) * maxSpd;
+        if (dist < 100 && dist > 5) {
+          ant.vx -= (dx / dist) * 0.12;
+          ant.vy -= (dy / dist) * 0.12;
         }
 
         ant.x += ant.vx;
         ant.y += ant.vy;
-        ant.legPhase += 0.35;
 
         if (ant.x < 10) ant.vx = Math.abs(ant.vx);
         if (ant.x > width - 10) ant.vx = -Math.abs(ant.vx);
@@ -145,46 +108,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         if (ant.y > height - 10) ant.vy = -Math.abs(ant.vy);
 
         const angle = Math.atan2(ant.vy, ant.vx);
+        ant.legPhase += 0.2;
 
         ctx.save();
         ctx.translate(ant.x, ant.y);
         ctx.rotate(angle);
+        ctx.fillStyle = `rgba(200, 210, 230, ${ant.opacity})`;
 
-        // Legs
-        ctx.strokeStyle = '#1e3a8a';
-        ctx.lineWidth = 1.2;
-        for (let l = -1; l <= 1; l++) {
-          const legWiggle = Math.sin(ant.legPhase + l) * 3;
-          ctx.beginPath();
-          ctx.moveTo(l * 3, 0);
-          ctx.lineTo(l * 4, -ant.size - 2 + legWiggle);
-          ctx.moveTo(l * 3, 0);
-          ctx.lineTo(l * 4, ant.size + 2 - legWiggle);
-          ctx.stroke();
-        }
-
-        // Abdomen
-        ctx.fillStyle = ant.color;
+        // Body
         ctx.beginPath();
-        ctx.ellipse(-ant.size * 0.7, 0, ant.size * 0.7, ant.size * 0.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Thorax
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, ant.size * 0.4, ant.size * 0.3, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, ant.size * 0.7, ant.size * 0.35, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Head
-        ctx.fillStyle = ant.color;
         ctx.beginPath();
-        ctx.ellipse(ant.size * 0.65, 0, ant.size * 0.4, ant.size * 0.35, 0, 0, Math.PI * 2);
+        ctx.arc(ant.size * 0.6, 0, ant.size * 0.25, 0, Math.PI * 2);
         ctx.fill();
-
-        if (ant.carryingFood) {
-          ctx.fillStyle = '#93c5fd';
-          ctx.fillRect(ant.size * 0.9, -2, 4, 4);
-        }
 
         ctx.restore();
       });
@@ -201,79 +140,48 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     };
   }, []);
 
-  const totalPts =
-    Object.values(profile.high_scores || {}).reduce((a, b) => a + (Number(b) || 0), 0) +
-    (profile.bonus_pts || 0);
-
   const claimableCount = getClaimableCount(profile);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col justify-between p-4 sm:p-8 select-none">
-      {/* Background Terrarium Canvas */}
+    <div className="relative w-screen h-screen overflow-hidden flex flex-col justify-between p-4 sm:p-7 select-none">
+      {/* Background Canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
 
-      {/* Terrarium Glass Border Vignette */}
-      <div className="absolute inset-0 border-[10px] border-blue-950/40 pointer-events-none z-10 rounded-2xl shadow-[inset_0_0_80px_rgba(3,7,18,0.9)]" />
-
-      {/* Top Bar: Profile, Daily Challenges Quick Button, PWA Install, Audio */}
-      <div className="relative z-20 flex items-center justify-between flex-wrap gap-2">
+      {/* Top Bar: Profile (username + avatar only, no PTS) and audio / pwa */}
+      <div className="relative z-20 flex items-center justify-between gap-3">
         {/* Profile Button */}
         <button
           onClick={() => {
             sound.playClick();
             onOpenProfile();
           }}
-          className="flex items-center gap-3 p-2 pr-4 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800/90 border border-blue-800/50 backdrop-blur-md transition-all cursor-pointer shadow-lg hover:border-blue-400/70"
+          className="flex items-center gap-2.5 p-1.5 pr-3.5 rounded-[220px_20px_200px_25px/20px_220px_25px_200px] bg-neutral-900/60 hover:bg-neutral-900/90 border border-neutral-700/60 hover:border-neutral-400 transition-all cursor-pointer backdrop-blur-sm"
         >
           <div className="relative shrink-0">
             {profile.avatar_url ? (
               <img
                 src={profile.avatar_url}
-                alt="Avatar"
-                className="w-10 h-10 rounded-xl object-cover border border-blue-400 shadow-md shadow-blue-500/20"
+                alt="avatar"
+                className="w-8 h-8 rounded-full object-cover border border-neutral-600"
               />
             ) : (
-              <SkinRenderer skinId={profile.active_skin} size={38} />
+              <SkinRenderer skinId={profile.active_skin} size={30} />
             )}
           </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-white font-mono flex items-center gap-1.5">
-              <span className="leading-none">{profile.username}</span>
-              {isMisioriUser(profile.username, profile.email) && (
-                <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
-                  <CheckCircle2 className="w-3.5 h-3.5 fill-sky-400 text-neutral-950 inline-block shrink-0" />
-                </span>
-              )}
-              <span className="text-[10px] text-blue-400 font-semibold px-1.5 py-0.2 bg-blue-950 rounded border border-blue-800 leading-none">
-                {totalPts.toLocaleString()} PTS
+          <div className="flex items-center gap-1.5">
+            <span className="font-['Patrick_Hand'] text-base text-neutral-200 leading-none">
+              {profile.username}
+            </span>
+            {isMisioriUser(profile.username, profile.email) && (
+              <span className="inline-flex items-center justify-center self-center" title="verified @misiori">
+                <CheckCircle2 className="w-3.5 h-3.5 fill-sky-400 text-neutral-950 inline-block shrink-0" />
               </span>
-            </div>
+            )}
           </div>
         </button>
 
-        {/* Right Controls: Daily Challenges, PWA Install Button & Audio */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => {
-              sound.playClick();
-              onOpenDailyChallenges();
-            }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-blue-950/80 hover:bg-blue-900/90 border border-blue-500/50 text-white font-mono text-xs font-bold transition-all cursor-pointer shadow-lg shadow-blue-950/50 hover:border-blue-400 group"
-          >
-            <Flame className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">DAILY CHALLENGES</span>
-            <span className="sm:hidden">DAILY</span>
-            {claimableCount > 0 ? (
-              <span className="px-1.5 py-0.2 rounded-full bg-cyan-400 text-neutral-950 text-[10px] font-black animate-bounce">
-                {claimableCount} CLAIM
-              </span>
-            ) : (
-              <span className="text-[10px] text-blue-300 font-semibold px-1 bg-blue-900/60 rounded">
-                +1,000+ PTS
-              </span>
-            )}
-          </button>
-
+        {/* Right audio & PWA */}
+        <div className="flex items-center gap-2">
           <PWAInstallButton />
 
           <button
@@ -281,79 +189,51 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               sound.playClick();
               onToggleMute();
             }}
-            className="p-2.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-blue-800/50 backdrop-blur-md text-neutral-300 hover:text-white transition-all cursor-pointer shadow-md"
-            title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+            className="p-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/60 hover:bg-neutral-900/90 border border-neutral-700/60 hover:border-neutral-400 text-neutral-400 hover:text-white transition-all cursor-pointer"
+            title={isMuted ? 'unmute' : 'mute'}
           >
-            {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5 text-blue-400" />}
+            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-neutral-300" />}
           </button>
         </div>
       </div>
 
-      {/* Center: Title & Huge Play Button */}
+      {/* Center: Title manuscript style & Carelessly Circled Play Icon */}
       <div className="relative z-20 flex flex-col items-center justify-center my-auto text-center px-4">
-        {/* Misiori Studio badge */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-neutral-900/80 border border-blue-500/40 text-blue-400 font-mono text-xs font-bold tracking-widest uppercase mb-4 backdrop-blur-md shadow-md"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-          A GAME BY MISIORI
-        </motion.div>
-
-        {/* Title in Electric Blue */}
+        {/* Title in manuscript handwritten font with ! in the end */}
         <motion.h1
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="text-4xl sm:text-6xl md:text-7xl font-black font-['Russo_One'] tracking-wide text-transparent bg-clip-text bg-gradient-to-b from-blue-100 via-blue-400 to-blue-600 drop-shadow-[0_0_40px_rgba(59,130,246,0.7)] leading-none mb-3"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+          className="font-['Caveat'] text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight text-neutral-100 mb-8 lowercase select-none"
         >
-          DANGEROUS
-          <br />
-          ANT FARM
+          dangerous ant farm!
         </motion.h1>
 
-        <p className="text-xs sm:text-sm font-mono text-neutral-300 tracking-wider max-w-md drop-shadow">
-          Rhythm-dodge survival: ants chase your cursor while dynamic speed portals shift the tempo.
-        </p>
-
-        {/* Big PLAY Button */}
+        {/* Just a play icon, carelessly circled */}
         <motion.button
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.1, rotate: -2 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => {
             sound.playClick();
             onPlayClick();
           }}
-          className="mt-8 px-12 py-5 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-black font-['Russo_One'] text-2xl tracking-widest shadow-[0_0_40px_rgba(59,130,246,0.6)] border border-blue-300 transition-all cursor-pointer flex items-center gap-4 group"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] border-2 border-neutral-300/80 hover:border-white bg-neutral-900/40 hover:bg-neutral-800/60 text-white flex items-center justify-center shadow-lg transition-all cursor-pointer group"
+          title="play"
         >
-          <Play className="w-8 h-8 fill-current transition-transform group-hover:scale-110" />
-          PLAY GAME
+          <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white ml-1 transition-transform group-hover:scale-110" />
         </motion.button>
       </div>
 
-      {/* Side / Bottom Buttons: Shop, Skins (28), Daily Challenges, Profile */}
-      <div className="relative z-20 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-        <button
-          onClick={() => {
-            sound.playClick();
-            onOpenShop();
-          }}
-          className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-blue-900/50 hover:border-blue-500/50 backdrop-blur-md text-white font-mono text-xs font-bold tracking-wider transition-all cursor-pointer shadow-lg"
-        >
-          <ShoppingBag className="w-4 h-4 text-blue-400" />
-          SHOP (COMING SOON)
-        </button>
-
+      {/* Bottom Menu Buttons: skins, challenges, profile — handwritten & carelessly circled */}
+      <div className="relative z-20 flex flex-wrap items-center justify-center gap-3 sm:gap-5 pb-2">
         <button
           onClick={() => {
             sound.playClick();
             onOpenSkins();
           }}
-          className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-blue-900/50 hover:border-blue-500/50 backdrop-blur-md text-white font-mono text-xs font-bold tracking-wider transition-all cursor-pointer shadow-lg"
+          className="px-5 py-2 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
-          <Palette className="w-4 h-4 text-cyan-400" />
-          CURSOR SKINS
+          skins
         </button>
 
         <button
@@ -361,12 +241,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenDailyChallenges();
           }}
-          className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-blue-900/50 hover:border-blue-500/50 backdrop-blur-md text-white font-mono text-xs font-bold tracking-wider transition-all cursor-pointer shadow-lg"
+          className="relative px-5 py-2 rounded-[220px_25px_200px_18px/22px_210px_20px_225px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
-          <Flame className="w-4 h-4 text-rose-400" />
-          DAILY CHALLENGES (+1,000+ PTS)
+          challenges
           {claimableCount > 0 && (
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
           )}
         </button>
 
@@ -375,10 +254,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onOpenProfile();
           }}
-          className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-blue-900/50 hover:border-blue-500/50 backdrop-blur-md text-white font-mono text-xs font-bold tracking-wider transition-all cursor-pointer shadow-lg"
+          className="px-5 py-2 rounded-[240px_18px_230px_20px/18px_235px_18px_240px] bg-neutral-900/50 hover:bg-neutral-900/90 border border-neutral-700/70 hover:border-neutral-300 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-xl tracking-wide lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
         >
-          <User className="w-4 h-4 text-indigo-400" />
-          PROFILE & LEADERBOARD
+          profile
         </button>
       </div>
     </div>

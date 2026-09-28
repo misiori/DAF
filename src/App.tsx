@@ -5,7 +5,6 @@ import { MainMenu } from './components/MainMenu';
 import { LevelSelect } from './components/LevelSelect';
 import { GameCanvas } from './components/GameCanvas';
 import { SkinsModal } from './components/SkinsModal';
-import { ShopModal } from './components/ShopModal';
 import { ProfileModal } from './components/ProfileModal';
 import { DailyChallengesModal } from './components/DailyChallengesModal';
 import { OrientationGuard } from './components/OrientationGuard';
@@ -28,7 +27,6 @@ export default function App() {
   const [selectedLevel, setSelectedLevel] = useState<LevelConfig | null>(null);
 
   // Modals
-  const [showShop, setShowShop] = useState(false);
   const [showSkins, setShowSkins] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
@@ -122,12 +120,19 @@ export default function App() {
     }
   };
 
-  const handleGameOver = (finalScore: number, sugarEarned: number) => {
+  const handleGameOver = (finalScore: number, sugarEarned: number, progressPercent = 0) => {
     if (!selectedLevel) return;
     const currentHigh = profile.high_scores[selectedLevel.id] || 0;
     const newHigh = Math.max(currentHigh, finalScore);
 
-    // Note: level is NOT added to beaten_levels on Game Over (only 100% complete completion till the end counts!)
+    const prevProgress = profile.level_progress?.[selectedLevel.id] || 0;
+    const newProgress = Math.max(prevProgress, Math.round(progressPercent));
+    const currentBeaten = new Set(profile.beaten_levels || []);
+
+    if (newProgress >= 100 && !selectedLevel.isEndless) {
+      currentBeaten.add(Number(selectedLevel.id));
+    }
+
     const updated: PlayerProfile = {
       ...profile,
       sugar_cubes: profile.sugar_cubes + sugarEarned,
@@ -135,6 +140,11 @@ export default function App() {
         ...profile.high_scores,
         [selectedLevel.id]: newHigh,
       },
+      level_progress: {
+        ...(profile.level_progress || {}),
+        [selectedLevel.id]: newProgress,
+      },
+      beaten_levels: Array.from(currentBeaten),
     };
     handleUpdateProfile(updated);
   };
@@ -148,7 +158,7 @@ export default function App() {
     // Level beaten 100% till the end! Add to beaten_levels
     const currentBeaten = new Set(profile.beaten_levels || []);
     if (!selectedLevel.isEndless) {
-      currentBeaten.add(selectedLevel.id);
+      currentBeaten.add(Number(selectedLevel.id));
     }
 
     const updated: PlayerProfile = {
@@ -157,6 +167,10 @@ export default function App() {
       high_scores: {
         ...profile.high_scores,
         [selectedLevel.id]: newHigh,
+      },
+      level_progress: {
+        ...(profile.level_progress || {}),
+        [selectedLevel.id]: 100,
       },
       beaten_levels: Array.from(currentBeaten),
     };
@@ -201,7 +215,6 @@ export default function App() {
             <MainMenu
               profile={profile}
               onPlayClick={() => setView('level_select')}
-              onOpenShop={() => setShowShop(true)}
               onOpenSkins={() => setShowSkins(true)}
               onOpenProfile={() => setShowProfile(true)}
               onOpenDailyChallenges={() => setShowDailyChallenges(true)}
@@ -254,8 +267,6 @@ export default function App() {
 
       {/* Global Modals */}
       <AnimatePresence>
-        {showShop && <ShopModal onClose={() => setShowShop(false)} />}
-
         {showSkins && (
           <SkinsModal
             activeSkinId={profile.active_skin}

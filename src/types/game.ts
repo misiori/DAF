@@ -27,6 +27,11 @@ export interface LevelConfig {
   spawnerCount: number;
   maxAnts: number;
   isEndless?: boolean;
+  hasCorridor?: boolean;
+  isCorridorMode?: boolean;
+  mechanicId?: string;
+  mechanicName?: string;
+  mechanicHint?: string;
 }
 
 export type SpeedMultiplier = 0.5 | 1.0 | 1.5 | 2.0;
@@ -59,6 +64,38 @@ export interface Anthill {
   spawnCooldown: number;
   maxSpawnCooldown: number;
   type: 'standard' | 'fire' | 'acid';
+  hp?: number;
+  maxHp?: number;
+  destroyedTime?: number;
+  meltdownTimer?: number;
+  maxMeltdownTimer?: number;
+}
+
+export interface CorridorPoint {
+  x: number;
+  y: number;
+  width: number;
+}
+
+export interface CorridorSegment {
+  x: number;
+  topY: number;
+  bottomY: number;
+  midY: number;
+  tunnelHeight: number;
+  hasObstacle?: boolean;
+  obsY?: number;
+  obsRadius?: number;
+}
+
+export interface InteractivePod {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  type: 'nuke_bomb' | 'freeze_emp' | 'turret';
+  pulse: number;
+  hp?: number;
 }
 
 export interface Obstacle {
@@ -125,7 +162,9 @@ export type ChallengeType =
   | 'speed_portals'
   | 'beat_hard'
   | 'survive_free_mode'
-  | 'score_milestone';
+  | 'score_milestone'
+  | 'nuke_anthills'
+  | 'survive_corridor';
 
 export interface DailyChallenge {
   id: string;
