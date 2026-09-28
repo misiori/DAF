@@ -583,6 +583,70 @@ class SoundSystem {
     osc.start(now);
     osc.stop(now + 0.32);
   }
+
+  public playCorridorEnter() {
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.35);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.42);
+  }
+
+  public playCorridorExit() {
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    // Triumphant chord burst
+    [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+
+      gain.gain.setValueAtTime(0.3, now + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5 + idx * 0.05);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+
+      osc.start(now + idx * 0.05);
+      osc.stop(now + 0.55 + idx * 0.05);
+    });
+  }
+
+  public playAlarm() {
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(440, now + 0.07);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.15);
+  }
 }
 
 export const sound = new SoundSystem();

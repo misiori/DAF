@@ -273,21 +273,49 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       if (data.user) {
         sound.playVictory();
-        const profile = await fetchProfileById(data.user.id);
-        if (profile) {
-          onProfileUpdated(profile);
-        } else {
-          const fallbackProfile: PlayerProfile = {
-            id: data.user.id,
-            username: loginIdentifier.replace(/@.*$/, ''),
-            email: undefined,
-            active_skin: 'amber',
-            unlocked_skins: ['amber'],
-            sugar_cubes: 0,
-            high_scores: {},
-          };
-          onProfileUpdated(fallbackProfile);
-        }
+        const dbProfile = await fetchProfileById(data.user.id);
+
+        // Merge existing guest progress so players never lose progress on login
+        const mergedHighScores = { ...(dbProfile?.high_scores || {}) };
+        Object.entries(currentProfile.high_scores || {}).forEach(([k, v]) => {
+          mergedHighScores[k] = Math.max(mergedHighScores[k] || 0, Number(v) || 0);
+        });
+
+        const mergedLevelProgress = { ...(dbProfile?.level_progress || {}) };
+        Object.entries(currentProfile.level_progress || {}).forEach(([k, v]) => {
+          mergedLevelProgress[k] = Math.max(mergedLevelProgress[k] || 0, Number(v) || 0);
+        });
+
+        const beatenSet = new Set([
+          ...(dbProfile?.beaten_levels || []),
+          ...(currentProfile.beaten_levels || []),
+        ]);
+        Object.entries(mergedLevelProgress).forEach(([k, v]) => {
+          if (v >= 100) beatenSet.add(Number(k));
+        });
+
+        const unlockedSkins = Array.from(
+          new Set([
+            ...(dbProfile?.unlocked_skins || ['amber']),
+            ...(currentProfile.unlocked_skins || ['amber']),
+          ])
+        );
+
+        const finalProfile: PlayerProfile = {
+          id: data.user.id,
+          username: dbProfile?.username || loginIdentifier.replace(/@.*$/, ''),
+          email: data.user.email,
+          active_skin: dbProfile?.active_skin || currentProfile.active_skin || 'amber',
+          unlocked_skins: unlockedSkins,
+          sugar_cubes: Math.max(dbProfile?.sugar_cubes || 0, currentProfile.sugar_cubes || 0),
+          high_scores: mergedHighScores,
+          beaten_levels: Array.from(beatenSet),
+          level_progress: mergedLevelProgress,
+          bonus_pts: Math.max(dbProfile?.bonus_pts || 0, currentProfile.bonus_pts || 0),
+          avatar_url: dbProfile?.avatar_url || currentProfile.avatar_url,
+        };
+
+        onProfileUpdated(finalProfile);
         setAuthSuccessMsg('Signed in successfully!');
       }
     } catch (err: unknown) {
@@ -933,8 +961,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div className="grid grid-cols-3 gap-2">
                     {difficulties.map((diff) => {
                       const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
+                      const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
                       const beaten = lvlsInDiff.filter(
-                        (l) => (viewedPlayer.high_scores?.[l.id] || 0) > 0
+                        (l) => beatenSet.has(l.id) || (viewedPlayer.level_progress?.[l.id] || 0) >= 100
                       ).length;
                       return (
                         <div key={diff} className="p-2 rounded-lg bg-neutral-900 border border-neutral-800">

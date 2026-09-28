@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+
+// Clean handwritten-style SVG icon with 'daf' in lowercase and carelessly circled ring
+const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color="#18181b" />
@@ -137,3 +142,58 @@
     />
   </g>
 </svg>
+`;
+
+async function generate() {
+  const publicDir = path.resolve('public');
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgIcon.trim());
+  console.log('Saved public/icon.svg');
+
+  const svgBuffer = Buffer.from(svgIcon);
+
+  // 192x192
+  await sharp(svgBuffer)
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-192x192.png'));
+  console.log('Saved pwa-192x192.png');
+
+  // 512x512
+  await sharp(svgBuffer)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-512x512.png'));
+  console.log('Saved pwa-512x512.png');
+
+  // 512x512 maskable (with 15% inner padding)
+  await sharp(svgBuffer)
+    .resize(410, 410)
+    .extend({
+      top: 51,
+      bottom: 51,
+      left: 51,
+      right: 51,
+      background: '#090a0f',
+    })
+    .png()
+    .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'));
+  console.log('Saved pwa-maskable-512x512.png');
+
+  // apple-touch-icon 180x180
+  await sharp(svgBuffer)
+    .resize(180, 180)
+    .png()
+    .toFile(path.join(publicDir, 'apple-touch-icon.png'));
+  console.log('Saved apple-touch-icon.png');
+
+  // favicon.ico (64x64 png as favicon)
+  await sharp(svgBuffer)
+    .resize(64, 64)
+    .png()
+    .toFile(path.join(publicDir, 'favicon.ico'));
+  console.log('Saved favicon.ico');
+
+  console.log('All icons generated successfully!');
+}
+
+generate().catch(console.error);
