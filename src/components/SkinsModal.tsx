@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, Check, Lock, Cookie, Shield, Eye } from 'lucide-react';
 import { SKINS } from '../lib/constants';
@@ -31,6 +31,18 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
   const [filter, setFilter] = useState<RarityFilter>('All');
   const [testMousePos, setTestMousePos] = useState({ x: 140, y: 75 });
   const previewAreaRef = useRef<HTMLDivElement | null>(null);
+
+  // Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        sound.playClick();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const isUnlocked = (skinId: string) =>
     unlockedSkinIds.includes(skinId) || skinId === 'amber';

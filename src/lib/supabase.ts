@@ -216,6 +216,18 @@ export async function fetchProfileById(userId: string): Promise<PlayerProfile | 
 
     if (!data) return null;
 
+    const beaten = (data.beaten_levels || []).map(Number);
+    const progress: Record<string, number> = { ...(data.level_progress || {}) };
+    beaten.forEach((id: number) => {
+      progress[id] = 100;
+      progress[String(id)] = 100;
+    });
+    Object.entries(progress).forEach(([k, v]) => {
+      if (Number(v) >= 100 && !beaten.includes(Number(k))) {
+        beaten.push(Number(k));
+      }
+    });
+
     return {
       id: data.id,
       username: data.username,
@@ -224,8 +236,10 @@ export async function fetchProfileById(userId: string): Promise<PlayerProfile | 
       unlocked_skins: data.unlocked_skins || ['amber'],
       sugar_cubes: data.sugar_cubes || 0,
       high_scores: data.high_scores || {},
-      beaten_levels: (data.beaten_levels || []).map(Number),
-      level_progress: data.level_progress || {},
+      beaten_levels: beaten,
+      level_progress: progress,
+      daily_challenges: data.daily_challenges,
+      bonus_pts: data.bonus_pts || 0,
       avatar_url: data.avatar_url,
       created_at: data.created_at,
     };
@@ -236,24 +250,150 @@ export async function fetchProfileById(userId: string): Promise<PlayerProfile | 
 }
 
 /**
- * Update profile high score, skin, beaten_levels, avatar
+ * Merge cloud profile with local profile to prevent losing any progress
+ */
+export function mergeProfiles(cloud: PlayerProfile, local: PlayerProfile): PlayerProfile {
+  const mergedBeaten = Array.from(
+    new Set([
+      ...(cloud.beaten_levels || []).map(Number),
+      ...(local.beaten_levels || []).map(Number),
+    ])
+  );
+
+  const mergedHighScores: Record<string, number> = { ...(cloud.high_scores || {}) };
+  Object.entries(local.high_scores || {}).forEach(([lvl, score]) => {
+    mergedHighScores[lvl] = Math.max(mergedHighScores[lvl] || 0, Number(score) || 0);
+  });
+
+  const mergedProgress: Record<string, number> = { ...(cloud.level_progress || {}) };
+  Object.entries(local.level_progress || {}).forEach(([lvl, prog]) => {
+    mergedProgress[lvl] = Math.max(mergedProgress[lvl] || 0, Number(prog) || 0);
+  });
+  mergedBeaten.forEach((lvl) => {
+    mergedProgress[lvl] = 100;
+  });
+
+  const mergedUnlocked = Array.from(
+    new Set([
+      'amber',
+      ...(cloud.unlocked_skins || ['amber']),
+      ...(local.unlocked_skins || ['amber']),
+    ])
+  );
+
+  // Merge daily challenges across devices
+  let mergedDailyChallenges = cloud.daily_challenges || local.daily_challenges;
+  if (cloud.daily_challenges && local.daily_challenges) {
+    if (cloud.daily_challenges.date === local.daily_challenges.date) {
+      const mergedProgMap: Record<string, number> = { ...(cloud.daily_challenges.progress || {}) };
+      Object.entries(local.daily_challenges.progress || {}).forEach(([cid, val]) => {
+        mergedProgMap[cid] = Math.max(mergedProgMap[cid] || 0, Number(val) || 0);
+      });
+
+      const mergedCompleted: Record<string, boolean> = {
+        ...(cloud.daily_challenges.completed || {}),
+        ...(local.daily_challenges.completed || {}),
+      };
+
+      const mergedClaimed: Record<string, boolean> = {
+        ...(cloud.daily_challenges.claimed || {}),
+        ...(local.daily_challenges.claimed || {}),
+      };
+
+      mergedDailyChallenges = {
+        date: cloud.daily_challenges.date,
+        progress: mergedProgMap,
+        completed: mergedCompleted,
+        claimed: mergedClaimed,
+      };
+    } else {
+      // Different days: prefer the more recent one or local if today
+      const today = new Date().toISOString().slice(0, 10);
+      if (local.daily_challenges.date === today) {
+        mergedDailyChallenges = local.daily_challenges;
+      } else {
+        mergedDailyChallenges = cloud.daily_challenges;
+      }
+    }
+  }
+
+  return {
+    ...cloud,
+    sugar_cubes: Math.max(cloud.sugar_cubes || 0, local.sugar_cubes || 0),
+    high_scores: mergedHighScores,
+    level_progress: mergedProgress,
+    beaten_levels: mergedBeaten,
+    unlocked_skins: mergedUnlocked,
+    active_skin: cloud.active_skin || local.active_skin || 'amber',
+    avatar_url: cloud.avatar_url || local.avatar_url,
+    bonus_pts: Math.max(cloud.bonus_pts || 0, local.bonus_pts || 0),
+    daily_challenges: mergedDailyChallenges,
+  };
+}
+
+/**
+ * Update profile high score, skin, beaten_levels, avatar, progress in Supabase
  */
 export async function updateProfile(
   userId: string,
   updates: Partial<PlayerProfile>
 ): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId);
+  if (!userId || userId === 'guest' || userId.startsWith('guest_')) {
+    return false;
+  }
 
-    if (error) {
-      console.warn('Supabase updateProfile error:', error.message);
-      return false;
+  try {
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.username !== undefined) payload.username = updates.username;
+    if (updates.active_skin !== undefined) payload.active_skin = updates.active_skin;
+    if (updates.unlocked_skins !== undefined) payload.unlocked_skins = updates.unlocked_skins;
+    if (updates.sugar_cubes !== undefined) payload.sugar_cubes = updates.sugar_cubes;
+    if (updates.high_scores !== undefined) payload.high_scores = updates.high_scores;
+    const beaten = updates.beaten_levels ? updates.beaten_levels.map(Number) : undefined;
+    const progress: Record<string, number> = updates.level_progress ? { ...updates.level_progress } : {};
+    if (beaten) {
+      beaten.forEach((id: number) => {
+        progress[id] = 100;
+        progress[String(id)] = 100;
+      });
+    }
+    Object.entries(progress).forEach(([k, v]) => {
+      if (Number(v) >= 100 && beaten && !beaten.includes(Number(k))) {
+        beaten.push(Number(k));
+      }
+    });
+
+    if (beaten !== undefined) payload.beaten_levels = beaten;
+    if (updates.level_progress !== undefined) payload.level_progress = progress;
+    if (updates.avatar_url !== undefined) payload.avatar_url = updates.avatar_url;
+    if (updates.bonus_pts !== undefined) payload.bonus_pts = updates.bonus_pts;
+    if (updates.daily_challenges !== undefined) payload.daily_challenges = updates.daily_challenges;
+
+    // Try standard update first
+    const { error: updateError, data } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select('id');
+
+    if (updateError || !data || data.length === 0) {
+      console.warn('Supabase updateProfile missing row or error, running upsert fallback');
+      // Fallback: upsert with user ID in case row was not yet created
+      const { error: upsertError } = await supabase.from('profiles').upsert(
+        {
+          id: userId,
+          ...payload,
+          username: updates.username || 'Player',
+        },
+        { onConflict: 'id' }
+      );
+      if (upsertError) {
+        console.warn('Supabase upsert error:', upsertError.message);
+        return false;
+      }
     }
     return true;
   } catch (err) {
@@ -347,7 +487,7 @@ export async function searchProfiles(query: string): Promise<PlayerProfile[]> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, avatar_url, created_at')
+      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, level_progress, bonus_pts, avatar_url, created_at')
       .ilike('username', `%${trimmed}%`)
       .limit(10);
 
@@ -359,7 +499,9 @@ export async function searchProfiles(query: string): Promise<PlayerProfile[]> {
       unlocked_skins: row.unlocked_skins || ['amber'],
       sugar_cubes: row.sugar_cubes || 0,
       high_scores: row.high_scores || {},
-      beaten_levels: row.beaten_levels || [],
+      beaten_levels: (row.beaten_levels || []).map(Number),
+      level_progress: row.level_progress || {},
+      bonus_pts: row.bonus_pts || 0,
       avatar_url: row.avatar_url,
       created_at: row.created_at,
     }));

@@ -16,6 +16,7 @@ import {
   supabase,
   fetchProfileById,
   updateProfile,
+  mergeProfiles,
 } from './lib/supabase';
 import { sound } from './lib/audio';
 
@@ -41,27 +42,41 @@ export default function App() {
     }
   }, [view]);
 
-  // First interaction listener to allow Web Audio on user gesture
+  // First interaction listener to allow Web Audio on user gesture (crucial for iOS Safari / iPhone 7 & tablets)
   useEffect(() => {
-    const handleFirstClick = () => {
-      sound.init();
+    const handleFirstGesture = () => {
+      sound.unlockAudio();
       if (view === 'menu' || view === 'level_select') {
         sound.startMenuBgm();
       }
-      window.removeEventListener('click', handleFirstClick);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('pointerdown', handleFirstGesture);
     };
-    window.addEventListener('click', handleFirstClick);
+
+    window.addEventListener('click', handleFirstGesture, { passive: true });
+    window.addEventListener('touchstart', handleFirstGesture, { passive: true });
+    window.addEventListener('pointerdown', handleFirstGesture, { passive: true });
+
     return () => {
-      window.removeEventListener('click', handleFirstClick);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('pointerdown', handleFirstGesture);
     };
   }, [view]);
+
   useEffect(() => {
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        fetchProfileById(session.user.id).then((p) => {
-          if (p) {
-            setProfile(p);
+        fetchProfileById(session.user.id).then((cloud) => {
+          if (cloud) {
+            setProfile((currentLocal) => {
+              const merged = mergeProfiles(cloud, currentLocal);
+              saveGuestProfile(merged);
+              updateProfile(session.user.id, merged);
+              return merged;
+            });
           }
         });
       }
@@ -72,9 +87,14 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const p = await fetchProfileById(session.user.id);
-        if (p) {
-          setProfile(p);
+        const cloud = await fetchProfileById(session.user.id);
+        if (cloud) {
+          setProfile((currentLocal) => {
+            const merged = mergeProfiles(cloud, currentLocal);
+            saveGuestProfile(merged);
+            updateProfile(session.user.id, merged);
+            return merged;
+          });
         }
       }
     });
@@ -95,6 +115,9 @@ export default function App() {
         sugar_cubes: updated.sugar_cubes,
         high_scores: updated.high_scores,
         beaten_levels: updated.beaten_levels,
+        level_progress: updated.level_progress,
+        daily_challenges: updated.daily_challenges,
+        bonus_pts: updated.bonus_pts,
         avatar_url: updated.avatar_url,
       });
     }

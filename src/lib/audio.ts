@@ -21,25 +21,51 @@ class SoundSystem {
   private menuStep: number = 0;
 
   public init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
 
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
-      this.masterGain.connect(this.ctx.destination);
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
 
-      this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.setValueAtTime(0.55, this.ctx.currentTime);
-      this.bgmGain.connect(this.masterGain);
+        this.bgmGain = this.ctx.createGain();
+        this.bgmGain.gain.setValueAtTime(0.55, this.ctx.currentTime);
+        this.bgmGain.connect(this.masterGain);
 
-      this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
-      this.sfxGain.connect(this.masterGain);
+        this.sfxGain = this.ctx.createGain();
+        this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+        this.sfxGain.connect(this.masterGain);
+      }
+
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Audio init caught:', e);
     }
+  }
 
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+  // Explicit gesture unlock for iOS Safari / iPhone 7
+  public unlockAudio() {
+    this.init();
+    if (!this.ctx) return;
+    try {
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      // Play a short silent buffer to satisfy WebKit strict user gesture unlock
+      const buffer = this.ctx.createBuffer(1, 1, 22050);
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.ctx.destination);
+      source.start(0);
+    } catch (e) {
+      // ignore
     }
   }
 

@@ -27,6 +27,8 @@ import {
   fetchProfileById,
   fetchLeaderboard,
   isUsernameTaken,
+  updateProfile,
+  mergeProfiles,
 } from '../lib/supabase';
 import { PlayerProfile } from '../types/game';
 import { SkinRenderer, getSkinById } from './SkinRenderer';
@@ -273,20 +275,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       if (data.user) {
         sound.playVictory();
-        const profile = await fetchProfileById(data.user.id);
-        if (profile) {
-          onProfileUpdated(profile);
+        const cloudProfile = await fetchProfileById(data.user.id);
+        if (cloudProfile) {
+          const merged = mergeProfiles(cloudProfile, currentProfile);
+          onProfileUpdated(merged);
+          await updateProfile(data.user.id, merged);
         } else {
           const fallbackProfile: PlayerProfile = {
+            ...currentProfile,
             id: data.user.id,
             username: loginIdentifier.replace(/@.*$/, ''),
-            email: undefined,
-            active_skin: 'amber',
-            unlocked_skins: ['amber'],
-            sugar_cubes: 0,
-            high_scores: {},
+            email: emailToUse,
           };
           onProfileUpdated(fallbackProfile);
+          await updateProfile(data.user.id, fallbackProfile);
         }
         setAuthSuccessMsg('Signed in successfully!');
       }
@@ -352,16 +354,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       );
 
       if (data.user && data.session) {
-        const newProfile: PlayerProfile = {
-          id: data.user.id,
-          username: trimmedUser,
-          email: undefined,
-          active_skin: 'amber',
-          unlocked_skins: ['amber'],
-          sugar_cubes: 0,
-          high_scores: {},
-        };
-        onProfileUpdated(newProfile);
+        const merged: PlayerProfile = mergeProfiles(
+          {
+            id: data.user.id,
+            username: trimmedUser,
+            email: trimmedEmail,
+            active_skin: currentProfile.active_skin || 'amber',
+            unlocked_skins: currentProfile.unlocked_skins || ['amber'],
+            sugar_cubes: currentProfile.sugar_cubes || 0,
+            high_scores: currentProfile.high_scores || {},
+            beaten_levels: currentProfile.beaten_levels || [],
+            level_progress: currentProfile.level_progress || {},
+            bonus_pts: currentProfile.bonus_pts || 0,
+            avatar_url: currentProfile.avatar_url,
+          },
+          currentProfile
+        );
+        onProfileUpdated(merged);
+        await updateProfile(data.user.id, merged);
       }
     } catch (err: unknown) {
       sound.playHitSound();
@@ -387,6 +397,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const activeSkin = getSkinById(currentProfile.active_skin);
+
+  // Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        sound.playClick();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -927,20 +949,43 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
 
                 <div className="pt-2 border-t border-neutral-800">
-                  <div className="text-[11px] font-mono text-neutral-500 uppercase mb-2">
-                    Difficulty Chambers Cleared
+                  <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
+                    <span>chambers beaten</span>
+                    <span>
+                      {
+                        LEVELS.filter((l) => {
+                          const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
+                          return (
+                            beatenSet.has(l.id) ||
+                            (viewedPlayer.level_progress?.[l.id] || 0) >= 100
+                          );
+                        }).length
+                      }{' '}
+                      / 23
+                    </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {difficulties.map((diff) => {
                       const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
+                      const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
                       const beaten = lvlsInDiff.filter(
-                        (l) => (viewedPlayer.high_scores?.[l.id] || 0) > 0
+                        (l) =>
+                          beatenSet.has(l.id) ||
+                          (viewedPlayer.level_progress?.[l.id] || 0) >= 100
                       ).length;
                       return (
-                        <div key={diff} className="p-2 rounded-lg bg-neutral-900 border border-neutral-800">
-                          <div className="text-[10px] font-mono text-neutral-400">{diff}</div>
-                          <div className="text-xs font-mono font-bold text-white">
-                            {beaten} / {lvlsInDiff.length}
+                        <div
+                          key={diff}
+                          className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-between"
+                        >
+                          <div
+                            className="text-xs font-['Patrick_Hand'] lowercase"
+                            style={{ color: DIFFICULTY_COLORS[diff] || '#3b82f6' }}
+                          >
+                            {diff.toLowerCase()}
+                          </div>
+                          <div className="text-xs font-['Patrick_Hand'] font-bold text-white">
+                            {beaten} <span className="text-neutral-500">/ {lvlsInDiff.length}</span>
                           </div>
                         </div>
                       );

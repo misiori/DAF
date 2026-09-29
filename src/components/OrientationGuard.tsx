@@ -12,7 +12,14 @@ export const OrientationGuard: React.FC = () => {
       const isPortrait = h > w;
       const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       const isMobileDevice = /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
-      const isPhone = (isMobileDevice || hasTouch) && (w < 600 || (w < 768 && h < 1000));
+      const isTablet =
+        /iPad|Tablet/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 0 &&
+          Math.min(w, h) >= 600 &&
+          !/iPhone|iPod/i.test(navigator.userAgent));
+
+      // Only lock small phone screens in portrait; tablets have enough resolution to play
+      const isPhone = !isTablet && (isMobileDevice || hasTouch) && Math.min(w, h) < 550;
       setIsPortraitPhone(isPortrait && Boolean(isPhone));
     };
 

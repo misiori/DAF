@@ -17,6 +17,7 @@ import {
 } from '../lib/constants';
 import { LevelConfig, PlayerProfile } from '../types/game';
 import { sound } from '../lib/audio';
+import { AmbientAntBackground } from './AmbientAntBackground';
 
 interface LevelSelectProps {
   profile: PlayerProfile;
@@ -66,6 +67,7 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
 
   return (
     <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-neutral-950 text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
+      <AmbientAntBackground opacity={0.7} antCount={30} />
       {/* Top Bar: minimal header */}
       <div className="relative z-10 flex items-center justify-between pb-2 sm:pb-3 border-b border-neutral-800/80 shrink-0">
         <button
@@ -160,6 +162,9 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                 onClick={() => handleLevelClick(lvl)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                role="button"
+                tabIndex={0}
+                style={{ touchAction: 'manipulation' }}
                 className="group relative p-3 sm:p-3.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border transition-all cursor-pointer flex flex-col justify-between bg-neutral-900/40 border-neutral-800/80 hover:bg-neutral-900/80 hover:border-neutral-500 shadow-sm"
               >
                 <div>

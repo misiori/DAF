@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X, ShoppingBag, Construction, Clock, Sparkles, Shield, Zap, Magnet } from 'lucide-react';
 import { sound } from '../lib/audio';
@@ -8,6 +8,18 @@ interface ShopModalProps {
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({ onClose }) => {
+  // Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        sound.playClick();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <motion.div

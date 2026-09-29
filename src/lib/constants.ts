@@ -4,19 +4,19 @@ export const SKINS: Skin[] = [
   // --- COMMON (4 Skins) ---
   {
     id: 'amber',
-    name: 'Cobalt Sentry',
+    name: 'Amber',
     rarity: 'Common',
     color: '#3b82f6',
     secondaryColor: '#bfdbfe',
     glowColor: 'rgba(59, 130, 246, 0.7)',
     trailColor: 'rgba(96, 165, 250, 0.4)',
-    description: 'Precision cobalt tracker infused with high-frequency pheromones.',
+    description: 'Precision amber cyber tracker infused with high-frequency pheromones.',
     unlockedByDefault: true,
     cost: 0,
   },
   {
     id: 'golden_amber',
-    name: 'Golden Honeycomb',
+    name: 'Gold',
     rarity: 'Common',
     color: '#f59e0b',
     secondaryColor: '#fef3c7',
@@ -28,7 +28,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'crimson',
-    name: 'Crimson Fury',
+    name: 'Crimson',
     rarity: 'Common',
     color: '#ef4444',
     secondaryColor: '#fee2e2',
@@ -40,7 +40,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'forest_moss',
-    name: 'Moss Guardian',
+    name: 'Moss',
     rarity: 'Common',
     color: '#15803d',
     secondaryColor: '#dcfce7',
@@ -54,7 +54,7 @@ export const SKINS: Skin[] = [
   // --- RARE (5 Skins) ---
   {
     id: 'cyan',
-    name: 'Cyber Neon Cyan',
+    name: 'Cyan',
     rarity: 'Rare',
     color: '#06b6d4',
     secondaryColor: '#cffafe',
@@ -66,11 +66,11 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'toxic',
-    name: 'Toxic Venom',
+    name: 'Toxic',
     rarity: 'Rare',
     color: '#10b981',
     secondaryColor: '#d1fae5',
-    glowColor: 'rgba(16, 185, 129, 0.75)',
+    glowColor: 'rgba(168, 85, 247, 0.75)',
     trailColor: 'rgba(52, 211, 153, 0.5)',
     description: 'Corrosive formic acid vapor dripping with lethal bio-hazard energy.',
     unlockedByDefault: false,
@@ -78,7 +78,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'amethyst',
-    name: 'Royal Void Violet',
+    name: 'Amethyst',
     rarity: 'Rare',
     color: '#a855f7',
     secondaryColor: '#f3e8ff',
@@ -90,7 +90,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'solar_flare',
-    name: 'Solar Flare',
+    name: 'Solar',
     rarity: 'Rare',
     color: '#f97316',
     secondaryColor: '#ffedd5',
@@ -102,7 +102,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'glacial_cryo',
-    name: 'Glacial Cryo',
+    name: 'Glacial',
     rarity: 'Rare',
     color: '#38bdf8',
     secondaryColor: '#e0f2fe',
@@ -116,7 +116,7 @@ export const SKINS: Skin[] = [
   // --- EPIC (6 Skins) ---
   {
     id: 'emerald_matrix',
-    name: 'Emerald Matrix',
+    name: 'Emerald',
     rarity: 'Epic',
     color: '#22c55e',
     secondaryColor: '#dcfce7',
@@ -128,7 +128,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'obsidian_shadow',
-    name: 'Obsidian Shadow',
+    name: 'Obsidian',
     rarity: 'Epic',
     color: '#94a3b8',
     secondaryColor: '#f1f5f9',
@@ -140,7 +140,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'synthwave_pink',
-    name: 'Synthwave Magenta',
+    name: 'Synthwave',
     rarity: 'Epic',
     color: '#ec4899',
     secondaryColor: '#fce7f3',
@@ -152,7 +152,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'electric_volt',
-    name: 'Lightning Spark',
+    name: 'Volt',
     rarity: 'Epic',
     color: '#eab308',
     secondaryColor: '#fef9c3',
@@ -164,7 +164,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'radioactive_waste',
-    name: 'Radioactive Hazard',
+    name: 'Hazard',
     rarity: 'Epic',
     color: '#84cc16',
     secondaryColor: '#ecfccb',
@@ -176,7 +176,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'magma_core',
-    name: 'Magma Core',
+    name: 'Magma',
     rarity: 'Epic',
     color: '#dc2626',
     secondaryColor: '#fee2e2',
@@ -190,7 +190,7 @@ export const SKINS: Skin[] = [
   // --- LEGENDARY (5 Skins) ---
   {
     id: 'chrono_brass',
-    name: 'Chrono Timekeeper',
+    name: 'Chrono',
     rarity: 'Legendary',
     color: '#d97706',
     secondaryColor: '#fef3c7',
@@ -202,7 +202,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'ghost_phantom',
-    name: 'Ghost Phantom',
+    name: 'Ghost',
     rarity: 'Legendary',
     color: '#e2e8f0',
     secondaryColor: '#ffffff',
@@ -214,7 +214,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'blood_moon',
-    name: 'Blood Moon Eclipse',
+    name: 'Blood',
     rarity: 'Legendary',
     color: '#b91c1c',
     secondaryColor: '#fecaca',
@@ -226,7 +226,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'deep_nebula',
-    name: 'Deep Cosmic Nebula',
+    name: 'Nebula',
     rarity: 'Legendary',
     color: '#6366f1',
     secondaryColor: '#e0e7ff',
@@ -238,7 +238,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'quantum_pulsar',
-    name: 'Quantum Pulsar',
+    name: 'Pulsar',
     rarity: 'Legendary',
     color: '#8b5cf6',
     secondaryColor: '#ede9fe',
@@ -252,7 +252,7 @@ export const SKINS: Skin[] = [
   // --- MYTHIC (4 Skins) ---
   {
     id: 'aurora_spirit',
-    name: 'Aurora Borealis',
+    name: 'Aurora',
     rarity: 'Mythic',
     color: '#2dd4bf',
     secondaryColor: '#ccfbf1',
@@ -264,7 +264,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'carbon_titanium',
-    name: 'Carbon Titanium',
+    name: 'Titanium',
     rarity: 'Mythic',
     color: '#64748b',
     secondaryColor: '#e2e8f0',
@@ -276,7 +276,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'queen_regalia',
-    name: 'Queen Mandible Crest',
+    name: 'Queen',
     rarity: 'Mythic',
     color: '#f43f5e',
     secondaryColor: '#ffe4e6',
@@ -288,7 +288,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'celestial_sovereign',
-    name: 'Celestial Sovereign',
+    name: 'Celestial',
     rarity: 'Mythic',
     color: '#fbbf24',
     secondaryColor: '#fffbeb',
@@ -300,7 +300,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'dark_singularity',
-    name: 'Dark Singularity',
+    name: 'Singularity',
     rarity: 'Mythic',
     color: '#818cf8',
     secondaryColor: '#e0e7ff',
@@ -312,7 +312,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'hyper_drive',
-    name: 'Hyperdrive Warp',
+    name: 'Hyperdrive',
     rarity: 'Mythic',
     color: '#06b6d4',
     secondaryColor: '#cffafe',
@@ -324,7 +324,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'prism_rainbow',
-    name: 'Prismatic Spectrum',
+    name: 'Prism',
     rarity: 'Legendary',
     color: '#ec4899',
     secondaryColor: '#fdf2f8',
@@ -336,7 +336,7 @@ export const SKINS: Skin[] = [
   },
   {
     id: 'bio_nanite',
-    name: 'Nanite Swarm Core',
+    name: 'Nanite',
     rarity: 'Epic',
     color: '#67e8f9',
     secondaryColor: '#ecfeff',

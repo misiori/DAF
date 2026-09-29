@@ -14,9 +14,9 @@ export default defineConfig(() => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'Dangerous Ant Farm',
-          short_name: 'AntFarm',
-          description: 'A rhythm-dodge arcade game where hordes of dangerous ants chase your cursor.',
+          name: 'DAF',
+          short_name: 'DAF',
+          description: 'rhythm-based game by misiori',
           theme_color: '#2563eb',
           background_color: '#050b14',
           display: 'standalone',

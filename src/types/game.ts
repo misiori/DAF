@@ -51,6 +51,7 @@ export interface Ant {
   rallyCooldown?: number;
   buffed?: boolean;
   targetAngleOffset?: number;
+  honeyFreezeTimer?: number;
 }
 
 export interface Anthill {

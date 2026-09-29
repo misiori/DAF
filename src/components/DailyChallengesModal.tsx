@@ -47,6 +47,18 @@ export const DailyChallengesModal: React.FC<DailyChallengesModalProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        sound.playClick();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handleClaim = (challenge: DailyChallenge) => {
     sound.playVictory();
     confetti({

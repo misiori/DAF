@@ -37,7 +37,15 @@ export const IntroScreen: React.FC<IntroScreenProps> = ({ onComplete }) => {
 
   return (
     <div
-      onClick={onComplete}
+      onClick={() => {
+        sound.unlockAudio();
+        onComplete();
+      }}
+      onTouchStart={() => {
+        sound.unlockAudio();
+        onComplete();
+      }}
+      style={{ touchAction: 'manipulation' }}
       className="relative w-screen h-screen overflow-hidden bg-neutral-950 flex flex-col items-center justify-center select-none cursor-pointer"
     >
       <div className="flex flex-col items-center gap-4 text-center px-6">

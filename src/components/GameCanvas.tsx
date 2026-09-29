@@ -14,6 +14,7 @@ import {
 } from '../types/game';
 import { ChallengeEvent } from '../lib/dailyChallenges';
 import { getSkinById } from './SkinRenderer';
+import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
@@ -109,6 +110,65 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const shockwavesRef = useRef<Shockwave[]>([]);
   const mechanicPodsRef = useRef<MechanicPod[]>([]);
 
+  // Placed Honey Traps that visibly freeze ants for 5 seconds
+  const honeyTrapsRef = useRef<
+    {
+      id: number;
+      x: number;
+      y: number;
+      radius: number;
+      duration: number;
+      maxDuration: number;
+      pulse: number;
+    }[]
+  >([]);
+  const honeyTrapCooldownRef = useRef(0);
+  const [honeyTrapCharges, setHoneyTrapCharges] = useState(3);
+  const honeyTrapChargesRef = useRef(3);
+
+  // Fair header section pause: stops level when in header, plays again when back in container
+  const [isHeaderStopped, setIsHeaderStopped] = useState(false);
+  const isHeaderStoppedRef = useRef(false);
+
+  // Deploy honey trap at target or cursor
+  const deployHoneyTrap = (targetX?: number, targetY?: number) => {
+    if (isGameOverRef.current || countdownRef.current !== null) return;
+    const height = window.innerHeight;
+    const width = window.innerWidth;
+    const BOX_TOP = height < 440 ? 54 : 72;
+    const BOX_BOTTOM = height - 20;
+    const BOX_LEFT = 20;
+    const BOX_RIGHT = width - 20;
+
+    const px = targetX ?? mouseRef.current.x;
+    const py = targetY ?? mouseRef.current.y;
+
+    const safeX = Math.max(BOX_LEFT + 40, Math.min(BOX_RIGHT - 40, px));
+    const safeY = Math.max(BOX_TOP + 40, Math.min(BOX_BOTTOM - 40, py));
+
+    sound.playZap();
+    honeyTrapsRef.current.push({
+      id: Math.random() * 100000,
+      x: safeX,
+      y: safeY,
+      radius: 80,
+      duration: 20,
+      maxDuration: 20,
+      pulse: 0,
+    });
+
+    shockwavesRef.current.push({
+      x: safeX,
+      y: safeY,
+      radius: 10,
+      maxRadius: 110,
+      color: '#fbbf24',
+    });
+
+    addParticles(safeX, safeY, 14, '#f59e0b');
+    addFloatingText('honey trap placed! [5s freeze]', safeX, safeY - 30, '#fbbf24');
+  };
+
   // Border damage cooldown
   const borderHitCooldownRef = useRef(0);
 
@@ -120,13 +180,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  // Tab key to pause listener
+  // Tab & Escape key to pause / resume listener, 'H' to deploy honey trap
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab' || e.code === 'Tab') {
+      if (
+        e.key === 'Tab' ||
+        e.code === 'Tab' ||
+        e.key === 'Escape' ||
+        e.code === 'Escape'
+      ) {
         e.preventDefault();
         sound.playClick();
+        if (isGameOverRef.current) {
+          sound.stopBgm();
+          onExit();
+          return;
+        }
         setIsPaused((prev) => !prev);
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        deployHoneyTrap();
       }
     };
 
@@ -134,7 +207,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [onExit]);
 
   // Audio start / stop
   useEffect(() => {
@@ -237,6 +310,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     setFreeModeSecondsLeft(15);
     borderHitCooldownRef.current = 0;
     freezeTimerRef.current = 0;
+    honeyTrapsRef.current = [];
+    honeyTrapCooldownRef.current = 0;
 
     // Reset countdown to 3
     setCountdown(3);
@@ -510,17 +585,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           addFloatingText('+sugar geyser!', pod.x, pod.y - 25, '#f59e0b');
           mechanicPodsRef.current.splice(idx, 1);
         } else if (pod.type === 'honey_trap') {
-          sound.playZap();
-          obstaclesRef.current.push({
-            id: Math.random() * 10000,
-            type: 'acidPuddle',
-            x: pod.x,
-            y: pod.y,
-            radius: 80,
-            timer: 450,
-          });
-          shockwavesRef.current.push({ x: pod.x, y: pod.y, radius: 10, maxRadius: 100, color: '#fbbf24' });
-          addFloatingText('honey trap active!', pod.x, pod.y - 25, '#fbbf24');
+          deployHoneyTrap(pod.x, pod.y);
           mechanicPodsRef.current.splice(idx, 1);
         } else if (pod.type === 'queen_cocoon') {
           pod.hp = (pod.hp ?? 6) - 1;
@@ -595,23 +660,40 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const touch = e.touches[0];
         mouseRef.current = { x: touch.clientX, y: touch.clientY };
       }
-      if (e.cancelable) {
+      // Only prevent page scrolling if touch is directly on the canvas during active play
+      if (e.cancelable && e.target === canvasRef.current && !isPausedRef.current && !isGameOverRef.current) {
         e.preventDefault();
       }
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      // CRITICAL FOR TABLETS: If user touched a button, input, modal, or HUD, do not intercept or preventDefault!
+      if (target?.closest('button, a, input, select, textarea, [role="button"], .pointer-events-auto')) {
+        return;
+      }
+      if (isPausedRef.current || isGameOverRef.current) {
+        return;
+      }
+
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
         mouseRef.current = { x: touch.clientX, y: touch.clientY };
         handleUserClick(touch.clientX, touch.clientY);
       }
-      if (e.cancelable) {
+      if (e.cancelable && e.target === canvasRef.current) {
         e.preventDefault();
       }
     };
 
     const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, a, input, select, textarea, [role="button"], .pointer-events-auto')) {
+        return;
+      }
+      if (isPausedRef.current || isGameOverRef.current) {
+        return;
+      }
       handleUserClick(e.clientX, e.clientY);
     };
 
@@ -646,18 +728,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
-    // Decorative floating dust motes
-    const dustMotes = Array.from({ length: 40 }).map(() => ({
+    // Ambient background ants crawling gently in background (matching overall game design)
+    const bgAntCount = 26;
+    const bgAnts = Array.from({ length: bgAntCount }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: (Math.random() - 0.5) * 1.2,
+      size: Math.random() * 2 + 4.5,
+      legPhase: Math.random() * 20,
+      opacity: Math.random() * 0.18 + 0.12,
+      tint: Math.random() > 0.6 ? '#93c5fd' : Math.random() > 0.3 ? '#fcd34d' : '#cbd5e1',
+    }));
+
+    // Decorative floating dust and soil motes
+    const dustMotes = Array.from({ length: 42 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
       size: Math.random() * 2 + 1,
-      alpha: Math.random() * 0.4 + 0.1,
+      alpha: Math.random() * 0.35 + 0.1,
+      phase: Math.random() * Math.PI * 2,
     }));
 
     const loop = () => {
-      const BOX_TOP = 72;
+      const BOX_TOP = height < 440 ? 54 : 72;
       const BOX_BOTTOM = height - 20;
       const BOX_LEFT = 20;
       const BOX_RIGHT = width - 20;
@@ -684,14 +780,36 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           freezeTimerRef.current -= 1 / 60;
         }
 
-        // Border collision check
+        // Fair header section check: If player goes to the header section, the whole level stops so it would be fair!
+        // And when we go back to the container, we can play again!
         const mx = mouseRef.current.x;
         const my = mouseRef.current.y;
 
-        const isBreachingHeader = my <= BOX_TOP;
+        if (my <= BOX_TOP) {
+          if (!isHeaderStoppedRef.current) {
+            isHeaderStoppedRef.current = true;
+            setIsHeaderStopped(true);
+            sound.playClick();
+          }
+          return;
+        } else if (isHeaderStoppedRef.current) {
+          isHeaderStoppedRef.current = false;
+          setIsHeaderStopped(false);
+          sound.playClick();
+          addFloatingText('back in container! play!', width / 2, BOX_TOP + 40, '#a3e635');
+        }
+
+        // Update placed honey traps
+        honeyTrapsRef.current.forEach((trap) => {
+          trap.duration -= (1 / 60) * speedMult;
+          trap.pulse += 0.06 * speedMult;
+        });
+        honeyTrapsRef.current = honeyTrapsRef.current.filter((trap) => trap.duration > 0);
+
+        // Left, right, and bottom borders remain hazardous containment boundaries
         const isBreachingBorder = mx <= BOX_LEFT || mx >= BOX_RIGHT || my >= BOX_BOTTOM;
 
-        if ((isBreachingHeader || isBreachingBorder) && borderHitCooldownRef.current <= 0) {
+        if (isBreachingBorder && borderHitCooldownRef.current <= 0) {
           borderHitCooldownRef.current = 45;
           healthRef.current -= 1;
           setHealth(healthRef.current);
@@ -842,6 +960,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         // Update Ants (only if not frozen by EMP)
         if (freezeTimerRef.current <= 0) {
           antsRef.current.forEach((ant) => {
+            // 1. If ant is already stuck in honey, count down and remain completely frozen!
+            if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
+              ant.honeyFreezeTimer -= (1 / 60) * speedMult;
+              ant.vx = 0;
+              ant.vy = 0;
+              return;
+            }
+
+            // 2. Check if ant walks into any placed honey trap -> freezes for 5 secs!
+            for (const trap of honeyTrapsRef.current) {
+              const trapDist = Math.hypot(ant.x - trap.x, ant.y - trap.y);
+              if (trapDist <= trap.radius) {
+                ant.honeyFreezeTimer = 5.0; // 5 full seconds!
+                ant.vx = 0;
+                ant.vy = 0;
+                sound.playZap();
+                addParticles(ant.x, ant.y, 8, '#fbbf24');
+                addFloatingText('stuck! 5s', ant.x, ant.y - ant.size - 18, '#fbbf24');
+                break;
+              }
+            }
+
+            if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
+              return;
+            }
+
             const dx = safeTargetX - ant.x;
             const dy = safeTargetY - ant.y;
             const dist = Math.hypot(dx, dy);
@@ -1030,43 +1174,129 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (shakeRef.current < 0.5) shakeRef.current = 0;
       }
 
-      // 1. Dynamic Background with Level Theme & Pulsing to Beat
+      // 1. Dynamic Dark Background with Level Theme, Faint Dot Grid, Beat Ripple, and Ambient Crawling Ants
       const beatCycle = Math.sin(gameTimeRef.current * (level.bpm / 60) * Math.PI * 2);
       const beatPulse = 0.5 + 0.5 * Math.max(0, beatCycle);
 
-      ctx.fillStyle = level.bgColor || '#050c18';
+      // Deep atmospheric dark base
+      ctx.fillStyle = level.bgColor || '#07090f';
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle ambient rhythmic background grid pulsing to BPM
-      ctx.strokeStyle = `${level.themeColor}12`;
-      ctx.lineWidth = 1;
-      const gridSize = 45;
-      for (let x = BOX_LEFT; x < BOX_RIGHT; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, BOX_TOP);
-        ctx.lineTo(x, BOX_BOTTOM);
-        ctx.stroke();
-      }
-      for (let y = BOX_TOP; y < BOX_BOTTOM; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(BOX_LEFT, y);
-        ctx.lineTo(BOX_RIGHT, y);
-        ctx.stroke();
+      // Atmospheric radial vignette
+      const bgGrad = ctx.createRadialGradient(
+        BOX_CENTER_X,
+        BOX_CENTER_Y,
+        Math.min(width, height) * 0.2,
+        BOX_CENTER_X,
+        BOX_CENTER_Y,
+        Math.max(width, height) * 0.85
+      );
+      bgGrad.addColorStop(0, `${level.themeColor}14`);
+      bgGrad.addColorStop(1, 'rgba(4, 6, 12, 0.95)');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Faint manuscript dot grid (matching main screen and theme aesthetic)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.022)';
+      const dotStep = 38;
+      for (let gx = BOX_LEFT + 15; gx < BOX_RIGHT; gx += dotStep) {
+        for (let gy = BOX_TOP + 15; gy < BOX_BOTTOM; gy += dotStep) {
+          ctx.fillRect(gx, gy, 1.2, 1.2);
+        }
       }
 
-      // Decorative floating dust motes
+      // BPM Beat expanding ring
+      if (beatPulse > 0.85) {
+        ctx.save();
+        const ringAlpha = (beatPulse - 0.85) * 6;
+        ctx.strokeStyle = `${level.themeColor}${Math.floor(ringAlpha * 40).toString(16).padStart(2, '0')}`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(BOX_CENTER_X, BOX_CENTER_Y, (1 - ringAlpha) * 110 + 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Floating soil & terrarium motes
       dustMotes.forEach((mote) => {
         mote.x += mote.vx;
         mote.y += mote.vy;
-        if (mote.x < 0) mote.x = width;
-        if (mote.x > width) mote.x = 0;
-        if (mote.y < 0) mote.y = height;
-        if (mote.y > height) mote.y = 0;
+        mote.phase += 0.02;
+        if (mote.x < BOX_LEFT) mote.x = BOX_RIGHT;
+        if (mote.x > BOX_RIGHT) mote.x = BOX_LEFT;
+        if (mote.y < BOX_TOP) mote.y = BOX_BOTTOM;
+        if (mote.y > BOX_BOTTOM) mote.y = BOX_TOP;
 
-        ctx.fillStyle = `${level.themeColor}40`;
+        const pulseSize = mote.size + Math.sin(mote.phase) * 0.4;
+        ctx.fillStyle = `${level.themeColor}${Math.floor(mote.alpha * 255).toString(16).padStart(2, '0')}`;
         ctx.beginPath();
-        ctx.arc(mote.x, mote.y, mote.size, 0, Math.PI * 2);
+        ctx.arc(mote.x, mote.y, Math.max(0.5, pulseSize), 0, Math.PI * 2);
         ctx.fill();
+      });
+
+      // Ambient wandering background ants (like main menu, crawls behind obstacles & entities)
+      bgAnts.forEach((ant) => {
+        const dx = mouseRef.current.x - ant.x;
+        const dy = mouseRef.current.y - ant.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 80 && dist > 5) {
+          ant.vx -= (dx / dist) * 0.12;
+          ant.vy -= (dy / dist) * 0.12;
+        }
+
+        ant.vx += (Math.random() - 0.5) * 0.08;
+        ant.vy += (Math.random() - 0.5) * 0.08;
+        const spd = Math.hypot(ant.vx, ant.vy);
+        if (spd > 1.6) {
+          ant.vx = (ant.vx / spd) * 1.6;
+          ant.vy = (ant.vy / spd) * 1.6;
+        }
+
+        ant.x += ant.vx;
+        ant.y += ant.vy;
+
+        if (ant.x < BOX_LEFT + 5) { ant.x = BOX_LEFT + 5; ant.vx = Math.abs(ant.vx); }
+        if (ant.x > BOX_RIGHT - 5) { ant.x = BOX_RIGHT - 5; ant.vx = -Math.abs(ant.vx); }
+        if (ant.y < BOX_TOP + 5) { ant.y = BOX_TOP + 5; ant.vy = Math.abs(ant.vy); }
+        if (ant.y > BOX_BOTTOM - 5) { ant.y = BOX_BOTTOM - 5; ant.vy = -Math.abs(ant.vy); }
+
+        const angle = Math.atan2(ant.vy, ant.vx);
+        ant.legPhase += 0.25;
+
+        ctx.save();
+        ctx.translate(ant.x, ant.y);
+        ctx.rotate(angle);
+        ctx.fillStyle = ant.tint;
+        ctx.globalAlpha = ant.opacity;
+
+        // Abdomen
+        ctx.beginPath();
+        ctx.ellipse(-ant.size * 0.45, 0, ant.size * 0.5, ant.size * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Thorax
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ant.size * 0.3, ant.size * 0.22, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head
+        ctx.beginPath();
+        ctx.arc(ant.size * 0.45, 0, ant.size * 0.24, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Legs
+        ctx.strokeStyle = ant.tint;
+        ctx.lineWidth = 1;
+        const legOff = Math.sin(ant.legPhase) * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -ant.size * 0.2);
+        ctx.lineTo(-ant.size * 0.2 + legOff, -ant.size * 0.6);
+        ctx.moveTo(0, ant.size * 0.2);
+        ctx.lineTo(-ant.size * 0.2 - legOff, ant.size * 0.6);
+        ctx.stroke();
+
+        ctx.restore();
       });
 
       // 2. Minimalist Perimeter Border (No high voltage writing, clean rounded box)
@@ -1188,6 +1418,99 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.restore();
       });
 
+      // 4.5 Draw Placed Honey Traps (Golden viscous puddles that freeze ants for 5 seconds)
+      honeyTrapsRef.current.forEach((trap) => {
+        const pulse = Math.sin(trap.pulse) * 3;
+        const tr = trap.radius + pulse;
+
+        ctx.save();
+        ctx.translate(trap.x, trap.y);
+
+        // 1. Soft glowing outer amber aura
+        const outerGlow = ctx.createRadialGradient(0, 0, tr * 0.3, 0, 0, tr + 20);
+        outerGlow.addColorStop(0, 'rgba(251, 191, 36, 0.4)');
+        outerGlow.addColorStop(0.7, 'rgba(245, 158, 11, 0.2)');
+        outerGlow.addColorStop(1, 'rgba(245, 158, 11, 0)');
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(0, 0, tr + 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Viscous organic amber puddle with wavy undulating rim
+        ctx.beginPath();
+        const lobCount = 8;
+        for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.1) {
+          const wave = Math.sin(a * lobCount + trap.pulse) * 4 + Math.cos(a * 4 - trap.pulse) * 3;
+          const r = tr + wave;
+          const px = Math.cos(a) * r;
+          const py = Math.sin(a) * r;
+          if (a === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+
+        const puddleGrad = ctx.createRadialGradient(0, 0, 5, 0, 0, tr);
+        puddleGrad.addColorStop(0, 'rgba(253, 230, 138, 0.85)');
+        puddleGrad.addColorStop(0.4, 'rgba(245, 158, 11, 0.7)');
+        puddleGrad.addColorStop(0.85, 'rgba(180, 83, 9, 0.75)');
+        puddleGrad.addColorStop(1, 'rgba(146, 64, 14, 0.85)');
+        ctx.fillStyle = puddleGrad;
+        ctx.fill();
+
+        ctx.strokeStyle = '#fef08a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 3. Etched hexagonal honeycomb pattern in center
+        ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
+        ctx.lineWidth = 1.2;
+        const hexR = 13;
+        const hexCenters = [
+          { x: 0, y: 0 },
+          { x: hexR * 1.5, y: hexR * 0.866 },
+          { x: -hexR * 1.5, y: hexR * 0.866 },
+          { x: hexR * 1.5, y: -hexR * 0.866 },
+          { x: -hexR * 1.5, y: -hexR * 0.866 },
+          { x: 0, y: hexR * 1.732 },
+          { x: 0, y: -hexR * 1.732 },
+        ];
+        hexCenters.forEach((off) => {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const hAngle = (i * Math.PI) / 3;
+            const hx = off.x + Math.cos(hAngle) * (hexR * 0.85);
+            const hy = off.y + Math.sin(hAngle) * (hexR * 0.85);
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        });
+
+        // 4. Glossy specular light reflections (thick viscous shine)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.beginPath();
+        ctx.ellipse(-tr * 0.35, -tr * 0.3, tr * 0.22, tr * 0.1, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.ellipse(tr * 0.25, -tr * 0.35, tr * 0.12, tr * 0.06, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 5. Honey Trap Label & Remaining Duration
+        const durSec = Math.max(0, Math.ceil(trap.duration));
+        ctx.fillStyle = '#fef3c7';
+        ctx.font = 'bold 11px Patrick_Hand, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`HONEY TRAP [${durSec}s]`, 0, -tr - 6);
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '10px Patrick_Hand, monospace';
+        ctx.fillText('freezes ants 5s', 0, tr + 14);
+
+        ctx.restore();
+      });
+
       // 5. Draw Expanding Shockwaves
       shockwavesRef.current.forEach((sw) => {
         const alpha = Math.max(0, 1 - sw.radius / sw.maxRadius);
@@ -1305,10 +1628,46 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.stroke();
         }
 
+        // Honey Freeze Visual: If ant is stuck in honey, encase in glistening amber crystal
+        if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
+          // Amber honey aura
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
+          ctx.beginPath();
+          ctx.arc(0, 0, ant.size * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#fef08a';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Golden crystallization facet
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.beginPath();
+          ctx.moveTo(-ant.size * 0.5, -ant.size * 0.4);
+          ctx.lineTo(-ant.size * 0.15, -ant.size * 0.7);
+          ctx.lineTo(0, -ant.size * 0.35);
+          ctx.closePath();
+          ctx.fill();
+
+          // Sticky honey drips
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(-ant.size * 0.3, ant.size * 1.1, 2.5, 0, Math.PI * 2);
+          ctx.arc(ant.size * 0.3, ant.size * 1.2, 2.0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Overhead countdown timer
+          const sec = ant.honeyFreezeTimer.toFixed(1);
+          ctx.fillStyle = '#fef08a';
+          ctx.font = 'bold 11px Patrick_Hand, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`🍯 ${sec}s`, 0, -ant.size * 1.6);
+        }
+
         ctx.restore();
       });
 
-      // 10. Draw Cursor Trail & Custom Cursor
+      // 10. Draw Cursor Trail & Authentic Player Skin Shape
       trailPointsRef.current.forEach((tp) => {
         ctx.fillStyle = activeSkin.trailColor;
         ctx.beginPath();
@@ -1319,30 +1678,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;
 
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.strokeStyle = activeSkin.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(0, -6);
-      ctx.lineTo(0, -14);
-      ctx.moveTo(0, 6);
-      ctx.lineTo(0, 14);
-      ctx.moveTo(-6, 0);
-      ctx.lineTo(-14, 0);
-      ctx.moveTo(6, 0);
-      ctx.lineTo(14, 0);
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      // Authentic shape corresponding to active unlocked skin in levels
+      drawPlayerSkin(ctx, activeSkin, mx, my, 15, gameTimeRef.current);
 
       // 11. Draw Particles
       particlesRef.current.forEach((p) => {
@@ -1379,18 +1716,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [level, activeSkin, onGameOver, onVictory]);
 
   return (
-    <div
-      className="relative w-screen h-screen overflow-hidden bg-black select-none cursor-none touch-none"
-      style={{ touchAction: 'none' }}
-    >
+    <div className="relative w-screen h-screen overflow-hidden bg-black select-none cursor-none">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 z-0 block touch-none"
         style={{ touchAction: 'none' }}
       />
 
-      {/* Top Header HUD: Minimalist, all lowercase, no caps, speed names only */}
-      <div className="absolute top-0 inset-x-0 z-20 px-3 sm:px-6 py-2.5 flex flex-col gap-1.5 pointer-events-none bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+      {/* Top Header HUD: Minimalist, all lowercase, stops level if cursor or touch enters header */}
+      <div
+        onPointerEnter={() => {
+          if (!isPausedRef.current && !isGameOverRef.current && countdownRef.current === null) {
+            isPausedRef.current = true;
+            setIsPaused(true);
+            sound.playClick();
+          }
+        }}
+        onTouchStart={() => {
+          if (!isPausedRef.current && !isGameOverRef.current && countdownRef.current === null) {
+            isPausedRef.current = true;
+            setIsPaused(true);
+            sound.playClick();
+          }
+        }}
+        className="absolute top-0 inset-x-0 z-20 px-3 sm:px-6 py-1 sm:py-2 flex flex-col gap-1.5 pointer-events-auto bg-gradient-to-b from-black/90 via-black/50 to-transparent select-none"
+      >
         <div className="flex items-center justify-between">
           {/* Level name & difficulty - lowercase */}
           <div className="flex items-center gap-2">
@@ -1440,13 +1790,40 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               ))}
             </div>
 
-            {/* Tab pause button */}
+            {/* Deploy honey trap button */}
             <button
-              onClick={() => {
-                sound.playClick();
-                setIsPaused(!isPaused);
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                deployHoneyTrap();
               }}
-              className="pointer-events-auto px-2.5 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900/70 hover:bg-neutral-800 border border-neutral-700/70 text-neutral-300 font-['Patrick_Hand'] text-xs lowercase transition-all cursor-pointer"
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                deployHoneyTrap();
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-amber-950/80 hover:bg-amber-900 active:bg-amber-800 border border-amber-600/80 text-amber-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase transition-all cursor-pointer select-none active:scale-95 shadow-sm"
+              style={{ touchAction: 'manipulation' }}
+              title="Deploy sticky honey trap [H] - freezes ants for 5s"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
+              honey trap [h]
+            </button>
+
+            {/* Tab pause button - sensor & mouse clickable */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                sound.playClick();
+                setIsPaused(true);
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                sound.playClick();
+                setIsPaused(true);
+              }}
+              className="pointer-events-auto px-2.5 sm:px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900/80 hover:bg-neutral-800 active:bg-neutral-700 border border-neutral-700/80 text-neutral-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase transition-all cursor-pointer select-none active:scale-95"
+              style={{ touchAction: 'manipulation' }}
             >
               [tab] pause
             </button>
@@ -1463,6 +1840,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           </div>
         )}
       </div>
+
+      {/* Fair Header Stop Notification: Level stops when cursor is in header, plays again when back in container */}
+      {isHeaderStopped && (
+        <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none px-4 py-1.5 rounded-full bg-neutral-900/95 border border-amber-500/80 shadow-2xl text-amber-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-2 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          level stopped (cursor in header) • return to container to play again
+        </div>
+      )}
 
       {/* 3, 2, 1 Countdown & "ur cursor is in the center" */}
       {countdown !== null && (
@@ -1481,22 +1866,49 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         </div>
       )}
 
-      {/* Pause Menu Overlay */}
+      {/* Pause Menu Overlay: Click outside or back in container to play again */}
       {isPaused && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-default">
-          <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 text-center shadow-2xl">
+        <div
+          onClick={() => {
+            sound.playClick();
+            const boxTop = window.innerHeight < 440 ? 54 : 72;
+            if (mouseRef.current.y <= boxTop + 20) {
+              mouseRef.current.y = boxTop + 45;
+            }
+            setIsPaused(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 text-center shadow-2xl cursor-default"
+          >
             <h2 className="text-4xl font-bold font-['Caveat'] text-neutral-100 lowercase mb-2">paused</h2>
             <p className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-6">
-              press [tab] or click below to resume
+              press [tab], [esc], or click inside container to play again
             </p>
 
             <div className="space-y-2.5">
               <button
+                type="button"
                 onClick={() => {
                   sound.playClick();
+                  const boxTop = window.innerHeight < 440 ? 54 : 72;
+                  if (mouseRef.current.y <= boxTop + 20) {
+                    mouseRef.current.y = boxTop + 45;
+                  }
                   setIsPaused(false);
                 }}
-                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-base font-bold cursor-pointer shadow-md"
+                onTouchEnd={() => {
+                  sound.playClick();
+                  const boxTop = window.innerHeight < 440 ? 54 : 72;
+                  if (mouseRef.current.y <= boxTop + 20) {
+                    mouseRef.current.y = boxTop + 45;
+                  }
+                  setIsPaused(false);
+                }}
+                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-base font-bold cursor-pointer shadow-md select-none"
+                style={{ touchAction: 'manipulation' }}
               >
                 resume [tab]
               </button>
