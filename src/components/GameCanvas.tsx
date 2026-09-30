@@ -22,8 +22,8 @@ import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
 interface GameCanvasProps {
   level: LevelConfig;
   profile: PlayerProfile;
-  onGameOver: (score: number, sugarEarned: number, progressPercent?: number) => void;
-  onVictory: (score: number, sugarEarned: number) => void;
+  onGameOver: (levelId: number, score: number, sugarEarned: number, progressPercent?: number, isEndless?: boolean) => void;
+  onVictory: (levelId: number, score: number, sugarEarned: number, difficulty: string, isEndless?: boolean) => void;
   onExit: () => void;
   onProgressDailyChallenge?: (event: ChallengeEvent) => void;
 }
@@ -78,6 +78,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Free mode dynamic state
   const [freeModeDifficulty, setFreeModeDifficulty] = useState<string>(level.difficulty);
   const [freeModeSecondsLeft, setFreeModeSecondsLeft] = useState<number>(15);
+  const [isHeaderStopped, setIsHeaderStopped] = useState(false);
+  const isHeaderStoppedRef = useRef(false);
 
   const activeSkin = getSkinById(profile.active_skin);
 
@@ -110,7 +112,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const shockwavesRef = useRef<Shockwave[]>([]);
   const mechanicPodsRef = useRef<MechanicPod[]>([]);
 
-  // Placed Honey Traps that visibly freeze ants for 5 seconds
+  // Placed Honey Traps that visibly freeze ants for 5 seconds (Only activated as an in-game power up pod!)
   const honeyTrapsRef = useRef<
     {
       id: number;
@@ -122,16 +124,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       pulse: number;
     }[]
   >([]);
-  const honeyTrapCooldownRef = useRef(0);
-  const [honeyTrapCharges, setHoneyTrapCharges] = useState(3);
-  const honeyTrapChargesRef = useRef(3);
 
-  // Fair header section pause: stops level when in header, plays again when back in container
-  const [isHeaderStopped, setIsHeaderStopped] = useState(false);
-  const isHeaderStoppedRef = useRef(false);
+  // Persistent progress ref to prevent stale closures when sending game over
+  const progressRef = useRef(0);
 
-  // Deploy honey trap at target or cursor
-  const deployHoneyTrap = (targetX?: number, targetY?: number) => {
+  // Deploy honey trap at pod location (cheat removed, only activates via power-up pod!)
+  const deployHoneyTrap = (targetX: number, targetY: number) => {
     if (isGameOverRef.current || countdownRef.current !== null) return;
     const height = window.innerHeight;
     const width = window.innerWidth;
@@ -140,20 +138,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const BOX_LEFT = 20;
     const BOX_RIGHT = width - 20;
 
-    const px = targetX ?? mouseRef.current.x;
-    const py = targetY ?? mouseRef.current.y;
-
-    const safeX = Math.max(BOX_LEFT + 40, Math.min(BOX_RIGHT - 40, px));
-    const safeY = Math.max(BOX_TOP + 40, Math.min(BOX_BOTTOM - 40, py));
+    const safeX = Math.max(BOX_LEFT + 25, Math.min(BOX_RIGHT - 25, targetX));
+    const safeY = Math.max(BOX_TOP + 25, Math.min(BOX_BOTTOM - 25, targetY));
 
     sound.playZap();
     honeyTrapsRef.current.push({
       id: Math.random() * 100000,
       x: safeX,
       y: safeY,
-      radius: 80,
-      duration: 20,
-      maxDuration: 20,
+      radius: 28, // Smaller honey trap!
+      duration: 5.0, // Active only 5s!
+      maxDuration: 5.0,
       pulse: 0,
     });
 
@@ -161,12 +156,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       x: safeX,
       y: safeY,
       radius: 10,
-      maxRadius: 110,
+      maxRadius: 70,
       color: '#fbbf24',
     });
 
-    addParticles(safeX, safeY, 14, '#f59e0b');
-    addFloatingText('honey trap placed! [5s freeze]', safeX, safeY - 30, '#fbbf24');
+    addParticles(safeX, safeY, 12, '#f59e0b');
+    addFloatingText('honey trap!', safeX, safeY - 20, '#fbbf24');
   };
 
   // Border damage cooldown
@@ -180,7 +175,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  // Tab & Escape key to pause / resume listener, 'H' to deploy honey trap
+  // Tab & Escape key to pause / resume listener (H cheat removed!)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -197,9 +192,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           return;
         }
         setIsPaused((prev) => !prev);
-      } else if (e.key === 'h' || e.key === 'H') {
-        e.preventDefault();
-        deployHoneyTrap();
       }
     };
 
@@ -311,7 +303,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     borderHitCooldownRef.current = 0;
     freezeTimerRef.current = 0;
     honeyTrapsRef.current = [];
-    honeyTrapCooldownRef.current = 0;
 
     // Reset countdown to 3
     setCountdown(3);
@@ -550,7 +541,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           freezeTimerRef.current = 3.5;
           shakeRef.current = 14;
           shockwavesRef.current.push({ x: pod.x, y: pod.y, radius: 10, maxRadius: 360, color: '#38bdf8' });
-          addFloatingText('freeze! colony stunned', pod.x, pod.y - 25, '#38bdf8');
+          addFloatingText('freeze!', pod.x, pod.y - 25, '#38bdf8');
           mechanicPodsRef.current.splice(idx, 1);
         } else if (pod.type === 'nuke_bomb') {
           sound.playExplosion();
@@ -566,7 +557,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             return true;
           });
           scoreRef.current += 400;
-          addFloatingText('nuke! +400 pts', pod.x, pod.y - 25, '#f87171');
+          addFloatingText('+400 pts', pod.x, pod.y - 25, '#f87171');
           mechanicPodsRef.current.splice(idx, 1);
         } else if (pod.type === 'sugar_geyser') {
           sound.playSugarCollect();
@@ -582,7 +573,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             });
           }
           shockwavesRef.current.push({ x: pod.x, y: pod.y, radius: 10, maxRadius: 180, color: '#f59e0b' });
-          addFloatingText('+sugar geyser!', pod.x, pod.y - 25, '#f59e0b');
+          addFloatingText('sugar blast!', pod.x, pod.y - 25, '#f59e0b');
           mechanicPodsRef.current.splice(idx, 1);
         } else if (pod.type === 'honey_trap') {
           deployHoneyTrap(pod.x, pod.y);
@@ -728,17 +719,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
-    // Ambient background ants crawling gently in background (matching overall game design)
-    const bgAntCount = 26;
+    // Ambient background ants crawling gently in background (like main screen)
+    const bgAntCount = 28;
     const bgAnts = Array.from({ length: bgAntCount }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 1.2,
-      vy: (Math.random() - 0.5) * 1.2,
-      size: Math.random() * 2 + 4.5,
+      vx: (Math.random() - 0.5) * 1.3,
+      vy: (Math.random() - 0.5) * 1.3,
+      size: Math.random() * 2 + 5,
       legPhase: Math.random() * 20,
-      opacity: Math.random() * 0.18 + 0.12,
-      tint: Math.random() > 0.6 ? '#93c5fd' : Math.random() > 0.3 ? '#fcd34d' : '#cbd5e1',
+      opacity: Math.random() * 0.25 + 0.15,
+      tint: 'rgba(230, 240, 255, 0.35)',
     }));
 
     // Decorative floating dust and soil motes
@@ -791,6 +782,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             setIsHeaderStopped(true);
             sound.playClick();
           }
+          animId = requestAnimationFrame(loop);
           return;
         } else if (isHeaderStoppedRef.current) {
           isHeaderStoppedRef.current = false;
@@ -822,7 +814,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (healthRef.current <= 0) {
             isGameOverRef.current = true;
             setGameState('lost');
-            onGameOver(scoreRef.current, sugarRef.current, progress);
+            onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
             return;
           }
         }
@@ -850,10 +842,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         // Update progress %
         if (!level.isEndless) {
           const currentProgress = Math.min(100, (gameTimeRef.current / level.durationSeconds) * 100);
+          progressRef.current = currentProgress;
           setProgress(currentProgress);
 
           if (gameTimeRef.current >= level.durationSeconds && !isGameOverRef.current) {
             isGameOverRef.current = true;
+            progressRef.current = 100;
+            setProgress(100);
             setGameState('won');
             sound.playVictory();
             confetti({
@@ -861,9 +856,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               spread: 80,
               origin: { y: 0.6 },
             });
-            onVictory(scoreRef.current, sugarRef.current);
-            onProgressDailyChallenge?.({ type: 'beat_hard', difficulty: level.difficulty });
-            onProgressDailyChallenge?.({ type: 'score_milestone', value: scoreRef.current });
+            onVictory(level.id, scoreRef.current, sugarRef.current, level.difficulty, Boolean(level.isEndless));
             return;
           }
         }
@@ -872,37 +865,86 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         scoreRef.current += Math.round(1 * speedMult);
         setScore(scoreRef.current);
 
-        // Spawn speed portals dynamically
-        if (Math.random() < 0.006 * speedMult && portalsRef.current.length < 2) {
-          const speeds: SpeedMultiplier[] = [0.5, 1.0, 1.5, 2.0];
-          const filtered = speeds.filter((s) => s !== speedMult);
-          const target = filtered[Math.floor(Math.random() * filtered.length)];
+        const effectiveDiff = level.isEndless ? currentDiffRef.current : level.difficulty;
 
-          const portalColor =
-            target === 0.5 ? '#10b981' : target === 1.0 ? '#38bdf8' : target === 1.5 ? '#f59e0b' : '#ef4444';
+        // Spawn speed portals dynamically based on difficulty
+        // Insane: Normal speed ONLY, no portals!
+        if (effectiveDiff === 'Insane') {
+          speedMultiplierRef.current = 1.0;
+          if (currentSpeed !== 1.0) {
+            setCurrentSpeed(1.0);
+            sound.setSpeedMultiplier(1.0);
+          }
+          portalsRef.current = [];
+        } else {
+          // Hard & Harder & Crazy: NO slow chance! Only normal, fast, hyper
+          let allowedSpeeds: SpeedMultiplier[] = [0.5, 1.0, 1.5, 2.0];
+          if (effectiveDiff === 'Hard' || effectiveDiff === 'Harder' || effectiveDiff === 'Crazy') {
+            allowedSpeeds = [1.0, 1.5, 2.0];
+          }
 
-          portalsRef.current.push({
-            id: Math.random() * 100000,
-            x: BOX_LEFT + 60 + Math.random() * (BOX_RIGHT - BOX_LEFT - 120),
-            y: BOX_TOP + 60 + Math.random() * (BOX_BOTTOM - BOX_TOP - 120),
-            radius: 22,
-            targetSpeed: target,
-            active: true,
-            angle: 0,
-            color: portalColor,
-            label: getSpeedName(target),
-          });
+          const portalRate = effectiveDiff === 'Easy' ? 0.007 : effectiveDiff === 'Normal' ? 0.004 : 0.002;
+          if (Math.random() < portalRate * speedMult && portalsRef.current.length < 2) {
+            const filtered = allowedSpeeds.filter((s) => s !== speedMult);
+            if (filtered.length > 0) {
+              const target = filtered[Math.floor(Math.random() * filtered.length)];
+              const portalColor =
+                target === 0.5 ? '#10b981' : target === 1.0 ? '#38bdf8' : target === 1.5 ? '#f59e0b' : '#ef4444';
+
+              portalsRef.current.push({
+                id: Math.random() * 100000,
+                x: BOX_LEFT + 60 + Math.random() * (BOX_RIGHT - BOX_LEFT - 120),
+                y: BOX_TOP + 60 + Math.random() * (BOX_BOTTOM - BOX_TOP - 120),
+                radius: 22,
+                targetSpeed: target,
+                active: true,
+                angle: 0,
+                color: portalColor,
+                label: getSpeedName(target),
+              });
+            }
+          }
         }
 
-        // Periodically spawn interactive mechanic pods if none exist
-        if (Math.random() < 0.003 && mechanicPodsRef.current.length < 2) {
-          const pTypes: ('nuke_bomb' | 'emp_bomb' | 'sugar_geyser' | 'honey_trap')[] = [
-            'nuke_bomb',
-            'emp_bomb',
-            'sugar_geyser',
-            'honey_trap',
-          ];
-          const chosen = pTypes[Math.floor(Math.random() * pTypes.length)];
+        // Spawn interactive power-up pods based on difficulty:
+        // Easy: higher chance, all power-ups (nuke, emp, sugar geyser, honey trap)
+        // Normal: less chance than easy, all power-ups
+        // Hard & Harder: less than normal, NO nuke and NO slow chance
+        // Insane: NO honey trap, NO nuke, normal speed only
+        // Crazy: minimal chance, NO honey trap, NO nuke, NO slow chance
+        let availablePodTypes: ('nuke_bomb' | 'emp_bomb' | 'sugar_geyser' | 'honey_trap')[] = [
+          'nuke_bomb',
+          'emp_bomb',
+          'sugar_geyser',
+          'honey_trap',
+        ];
+        let podSpawnChance = 0.0065;
+        let maxPodsAllowed = 3;
+
+        if (effectiveDiff === 'Easy') {
+          podSpawnChance = 0.007;
+          maxPodsAllowed = 3;
+          availablePodTypes = ['nuke_bomb', 'emp_bomb', 'sugar_geyser', 'honey_trap'];
+        } else if (effectiveDiff === 'Normal') {
+          podSpawnChance = 0.004;
+          maxPodsAllowed = 2;
+          availablePodTypes = ['nuke_bomb', 'emp_bomb', 'sugar_geyser', 'honey_trap'];
+        } else if (effectiveDiff === 'Hard' || effectiveDiff === 'Harder') {
+          podSpawnChance = 0.0022;
+          maxPodsAllowed = 1;
+          availablePodTypes = ['emp_bomb', 'sugar_geyser', 'honey_trap'];
+        } else if (effectiveDiff === 'Insane') {
+          podSpawnChance = 0.0014;
+          maxPodsAllowed = 1;
+          availablePodTypes = ['emp_bomb', 'sugar_geyser'];
+        } else if (effectiveDiff === 'Crazy') {
+          podSpawnChance = 0.0012;
+          maxPodsAllowed = 1;
+          availablePodTypes = ['emp_bomb', 'sugar_geyser'];
+        }
+
+        if (Math.random() < podSpawnChance && mechanicPodsRef.current.length < maxPodsAllowed) {
+          const chosen = availablePodTypes[Math.floor(Math.random() * availablePodTypes.length)];
           mechanicPodsRef.current.push({
             id: Math.random() * 100000,
             x: BOX_LEFT + 80 + Math.random() * (BOX_RIGHT - BOX_LEFT - 160),
@@ -976,8 +1018,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 ant.vx = 0;
                 ant.vy = 0;
                 sound.playZap();
-                addParticles(ant.x, ant.y, 8, '#fbbf24');
-                addFloatingText('stuck! 5s', ant.x, ant.y - ant.size - 18, '#fbbf24');
+                addParticles(ant.x, ant.y, 6, '#fbbf24');
                 break;
               }
             }
@@ -1040,7 +1081,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               if (healthRef.current <= 0) {
                 isGameOverRef.current = true;
                 setGameState('lost');
-                onGameOver(scoreRef.current, sugarRef.current, progress);
+                onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
               }
             }
           });
@@ -1083,7 +1124,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               if (healthRef.current <= 0) {
                 isGameOverRef.current = true;
                 setGameState('lost');
-                onGameOver(scoreRef.current, sugarRef.current, progress);
+                onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
               }
             }
           } else if (obs.type === 'laser') {
@@ -1118,7 +1159,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             sound.setSpeedMultiplier(portal.targetSpeed);
             shakeRef.current = 10;
             portal.active = false;
-            addFloatingText(`tempo: ${portal.label}`, portal.x, portal.y - 20, portal.color);
+            addFloatingText(`${portal.label}!`, portal.x, portal.y - 20, portal.color);
 
             // Pass warp gate blasts nearby ants!
             antsRef.current = antsRef.current.filter((ant) => {
@@ -1178,11 +1219,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const beatCycle = Math.sin(gameTimeRef.current * (level.bpm / 60) * Math.PI * 2);
       const beatPulse = 0.5 + 0.5 * Math.max(0, beatCycle);
 
-      // Deep atmospheric dark base
-      ctx.fillStyle = level.bgColor || '#07090f';
+      // Deep dark background matching main screen with subtle dark tone tint
+      ctx.fillStyle = '#08090e';
       ctx.fillRect(0, 0, width, height);
 
-      // Atmospheric radial vignette
+      // Atmospheric subtle dark-tone radial vignette based on level
       const bgGrad = ctx.createRadialGradient(
         BOX_CENTER_X,
         BOX_CENTER_Y,
@@ -1191,17 +1232,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         BOX_CENTER_Y,
         Math.max(width, height) * 0.85
       );
-      bgGrad.addColorStop(0, `${level.themeColor}14`);
-      bgGrad.addColorStop(1, 'rgba(4, 6, 12, 0.95)');
+      bgGrad.addColorStop(0, `${level.themeColor}0c`);
+      bgGrad.addColorStop(1, '#050609');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Faint manuscript dot grid (matching main screen and theme aesthetic)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.022)';
+      // Faint manuscript dot grid (matching main screen aesthetic)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
       const dotStep = 38;
       for (let gx = BOX_LEFT + 15; gx < BOX_RIGHT; gx += dotStep) {
         for (let gy = BOX_TOP + 15; gy < BOX_BOTTOM; gy += dotStep) {
-          ctx.fillRect(gx, gy, 1.2, 1.2);
+          ctx.fillRect(gx, gy, 1.4, 1.4);
         }
       }
 
@@ -1228,13 +1269,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (mote.y > BOX_BOTTOM) mote.y = BOX_TOP;
 
         const pulseSize = mote.size + Math.sin(mote.phase) * 0.4;
-        ctx.fillStyle = `${level.themeColor}${Math.floor(mote.alpha * 255).toString(16).padStart(2, '0')}`;
+        ctx.fillStyle = `rgba(240, 245, 255, ${mote.alpha * 0.25})`;
         ctx.beginPath();
         ctx.arc(mote.x, mote.y, Math.max(0.5, pulseSize), 0, Math.PI * 2);
         ctx.fill();
       });
 
-      // Ambient wandering background ants (like main menu, crawls behind obstacles & entities)
+      // Ambient wandering background ants (WHITE bugs running on black bg, exactly like main screen)
       bgAnts.forEach((ant) => {
         const dx = mouseRef.current.x - ant.x;
         const dy = mouseRef.current.y - ant.y;
@@ -1267,8 +1308,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.save();
         ctx.translate(ant.x, ant.y);
         ctx.rotate(angle);
-        ctx.fillStyle = ant.tint;
-        ctx.globalAlpha = ant.opacity;
+        // White bugs running!
+        ctx.fillStyle = `rgba(220, 230, 245, ${ant.opacity})`;
 
         // Abdomen
         ctx.beginPath();
@@ -1285,8 +1326,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.arc(ant.size * 0.45, 0, ant.size * 0.24, 0, Math.PI * 2);
         ctx.fill();
 
-        // Legs
-        ctx.strokeStyle = ant.tint;
+        // White Legs
+        ctx.strokeStyle = `rgba(220, 230, 245, ${ant.opacity * 0.9})`;
         ctx.lineWidth = 1;
         const legOff = Math.sin(ant.legPhase) * 1.5;
         ctx.beginPath();
@@ -1496,17 +1537,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.beginPath();
         ctx.ellipse(tr * 0.25, -tr * 0.35, tr * 0.12, tr * 0.06, 0.3, 0, Math.PI * 2);
         ctx.fill();
-
-        // 5. Honey Trap Label & Remaining Duration
-        const durSec = Math.max(0, Math.ceil(trap.duration));
-        ctx.fillStyle = '#fef3c7';
-        ctx.font = 'bold 11px Patrick_Hand, monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`HONEY TRAP [${durSec}s]`, 0, -tr - 6);
-
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '10px Patrick_Hand, monospace';
-        ctx.fillText('freezes ants 5s', 0, tr + 14);
 
         ctx.restore();
       });
@@ -1765,17 +1795,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             <span>{getSpeedName(currentSpeed)}</span>
           </div>
 
-          {/* Right: Sugar, PTS, Shields, Tab pause */}
+          {/* Right: Shields & Tab pause (sugar, pts, and honey trap removed from header per request) */}
           <div className="flex items-center gap-2.5 sm:gap-4">
-            <div className="flex items-center gap-1 text-xs font-['Patrick_Hand'] text-amber-400">
-              <Cookie className="w-3.5 h-3.5" />
-              <span>+{sugarCollected}</span>
-            </div>
-
-            <div className="text-xs font-['Patrick_Hand'] text-neutral-300">
-              <span>{score.toLocaleString()} pts</span>
-            </div>
-
             {/* Health shields */}
             <div className="flex items-center gap-1">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -1789,25 +1810,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 />
               ))}
             </div>
-
-            {/* Deploy honey trap button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                deployHoneyTrap();
-              }}
-              onTouchEnd={(e) => {
-                e.stopPropagation();
-                deployHoneyTrap();
-              }}
-              className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-amber-950/80 hover:bg-amber-900 active:bg-amber-800 border border-amber-600/80 text-amber-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase transition-all cursor-pointer select-none active:scale-95 shadow-sm"
-              style={{ touchAction: 'manipulation' }}
-              title="Deploy sticky honey trap [H] - freezes ants for 5s"
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
-              honey trap [h]
-            </button>
 
             {/* Tab pause button - sensor & mouse clickable */}
             <button
@@ -1858,9 +1860,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             </div>
             <div className="font-['Patrick_Hand'] text-2xl text-neutral-200 lowercase tracking-wide">
               ur cursor is in the center
-            </div>
-            <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mt-1">
-              {level.mechanicHint || 'dodge ants & click anthills to nuke them'}
             </div>
           </div>
         </div>
@@ -1928,6 +1927,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 onClick={() => {
                   sound.playClick();
                   sound.stopBgm();
+                  if (!isGameOverRef.current) {
+                    onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+                  }
                   onExit();
                 }}
                 className="w-full py-2 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-['Patrick_Hand'] text-sm cursor-pointer"

@@ -46,44 +46,40 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
     window.addEventListener('mousemove', handlePointerMove, { passive: true });
     window.addEventListener('touchmove', handlePointerMove, { passive: true });
 
-    // Generate varied ants with multiple castes (scout, worker, soldier, golden)
+    // Generate ants matching main screen: white bugs running on black bg
     const ants = Array.from({ length: antCount }).map(() => {
-      const casteRoll = Math.random();
-      const caste = casteRoll > 0.85 ? 'soldier' : casteRoll > 0.65 ? 'golden' : casteRoll > 0.4 ? 'scout' : 'worker';
-      const size = caste === 'soldier' ? 7.5 : caste === 'scout' ? 3.8 : caste === 'golden' ? 6.2 : 5.2;
-      const tint = caste === 'soldier' ? '#f87171' : caste === 'golden' ? '#fbbf24' : caste === 'scout' ? '#38bdf8' : '#cbd5e1';
-      const speed = caste === 'scout' ? 1.8 : 1.2;
+      const size = Math.random() * 2 + 4.8;
+      const speed = Math.random() * 0.6 + 1.0;
 
       return {
-        caste,
         x: Math.random() * width,
         y: Math.random() * height,
         vx: (Math.random() - 0.5) * speed,
         vy: (Math.random() - 0.5) * speed,
         size,
         legPhase: Math.random() * 20,
-        opacity: caste === 'golden' ? 0.35 : Math.random() * 0.25 + 0.15,
-        tint,
+        opacity: Math.random() * 0.25 + 0.2,
+        tint: 'rgba(220, 230, 245, 0.95)',
       };
     });
 
-    // Floating organic terrarium spores & firefly motes
-    const spores = Array.from({ length: 32 }).map(() => ({
+    // Floating subtle faint dust motes
+    const spores = Array.from({ length: 24 }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: -Math.random() * 0.4 - 0.1,
-      size: Math.random() * 2.2 + 0.8,
-      alpha: Math.random() * 0.3 + 0.1,
-      color: Math.random() > 0.6 ? '#fbbf24' : Math.random() > 0.3 ? '#38bdf8' : '#94a3b8',
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: -Math.random() * 0.3 - 0.05,
+      size: Math.random() * 1.5 + 0.8,
+      alpha: Math.random() * 0.2 + 0.08,
+      color: 'rgba(255, 255, 255, 0.6)',
       pulse: Math.random() * Math.PI * 2,
     }));
 
     const render = () => {
-      ctx.fillStyle = '#080a10';
+      ctx.fillStyle = '#07080c';
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle radial vignette
+      // Subtle radial vignette in deep dark tones
       const grad = ctx.createRadialGradient(
         width / 2,
         height / 2,
@@ -92,8 +88,8 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
         height / 2,
         Math.max(width, height) * 0.85
       );
-      grad.addColorStop(0, themeColor ? `${themeColor}15` : 'rgba(15, 23, 42, 0.45)');
-      grad.addColorStop(1, 'rgba(4, 6, 11, 0.95)');
+      grad.addColorStop(0, themeColor ? `${themeColor}0a` : 'rgba(15, 23, 42, 0.25)');
+      grad.addColorStop(1, 'rgba(4, 5, 8, 0.98)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 

@@ -67,6 +67,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searchResults, setSearchResults] = useState<PlayerProfile[]>([]);
   const [searching, setSearching] = useState(false);
   const [viewedPlayer, setViewedPlayer] = useState<PlayerProfile | null>(null);
+  const [showSkinInViewedProfile, setShowSkinInViewedProfile] = useState(false);
 
   // Leaderboard State
   const [leaderboard, setLeaderboard] = useState<
@@ -192,11 +193,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const totalPts = highScoresPts + bonusPts;
 
   // Calculate levels beaten by difficulty (ONLY chambers beaten 100% till the end)
-  const beatenSet = new Set(currentProfile.beaten_levels || []);
+  const beatenNumList = (currentProfile.beaten_levels || []).map(Number);
   const difficulties = ['Easy', 'Normal', 'Hard', 'Harder', 'Insane', 'Crazy'] as const;
   const statsByDiff = difficulties.map((diff) => {
     const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
-    const beatenCount = lvlsInDiff.filter((l) => beatenSet.has(l.id)).length;
+    const beatenCount = lvlsInDiff.filter((l) => {
+      if (beatenNumList.includes(Number(l.id))) return true;
+      const prog = currentProfile.level_progress?.[l.id] ?? currentProfile.level_progress?.[String(l.id)] ?? 0;
+      return Number(prog) >= 100;
+    }).length;
     return {
       difficulty: diff,
       beaten: beatenCount,
@@ -398,6 +403,131 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const activeSkin = getSkinById(currentProfile.active_skin);
 
+  const renderViewedPlayerCard = () => {
+    if (!viewedPlayer) return null;
+    const viewedPlayerPts =
+      Object.values(viewedPlayer.high_scores || {}).reduce((a, b) => a + (Number(b) || 0), 0) +
+      (viewedPlayer.bonus_pts || 0);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-3"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Instead of skin it shows avatar. When clicked it switches to skin */}
+            <div
+              onClick={() => {
+                sound.playClick();
+                setShowSkinInViewedProfile((prev) => !prev);
+              }}
+              className="relative cursor-pointer group shrink-0"
+              title="click to switch avatar / skin"
+            >
+              {!showSkinInViewedProfile ? (
+                viewedPlayer.avatar_url ? (
+                  <img
+                    src={viewedPlayer.avatar_url}
+                    alt="Avatar"
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-neutral-700 group-hover:border-neutral-500 group-hover:scale-105 transition-all shadow-md"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-neutral-900 border-2 border-neutral-700 flex items-center justify-center group-hover:border-neutral-500 group-hover:scale-105 transition-all shadow-md">
+                    <User className="w-7 h-7 text-neutral-400" />
+                  </div>
+                )
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-neutral-900 border-2 border-neutral-600 flex items-center justify-center p-1 group-hover:border-neutral-500 group-hover:scale-105 transition-all shadow-md">
+                  <SkinRenderer skinId={viewedPlayer.active_skin} size={46} animated />
+                </div>
+              )}
+              <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-neutral-900/90 border border-neutral-700 text-[9px] font-['Patrick_Hand'] text-neutral-400 lowercase select-none">
+                {showSkinInViewedProfile ? 'skin' : 'avatar'}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-bold text-white font-['Patrick_Hand'] text-2xl leading-none">
+                  {viewedPlayer.username}
+                </h4>
+                {isMisioriUser(viewedPlayer.username, viewedPlayer.email) && (
+                  <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
+                    <CheckCircle2 className="w-4 h-4 fill-sky-400 text-neutral-950 inline-block shrink-0" />
+                  </span>
+                )}
+              </div>
+              {/* Shows the pts quantity under the name instead of skin name */}
+              <p className="text-base font-['Patrick_Hand'] text-neutral-300 mt-1 leading-none">
+                {viewedPlayerPts.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Small X button to return to leaderboard or search results */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setViewedPlayer(null);
+              setShowSkinInViewedProfile(false);
+            }}
+            className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            title={tab === 'leaderboard' ? 'back to leaderboard' : 'back to search'}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="pt-2 border-t border-neutral-800">
+          <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
+            <span>chambers beaten</span>
+            <span>
+              {
+                LEVELS.filter((l) => {
+                  const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
+                  return (
+                    beatenSet.has(l.id) ||
+                    (viewedPlayer.level_progress?.[l.id] || 0) >= 100
+                  );
+                }).length
+              }{' '}
+              / 23
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {difficulties.map((diff) => {
+              const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
+              const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
+              const beaten = lvlsInDiff.filter(
+                (l) =>
+                  beatenSet.has(l.id) ||
+                  (viewedPlayer.level_progress?.[l.id] || 0) >= 100
+              ).length;
+              return (
+                <div
+                  key={diff}
+                  className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-between"
+                >
+                  <div
+                    className="text-xs font-['Patrick_Hand'] lowercase"
+                    style={{ color: DIFFICULTY_COLORS[diff] || '#3b82f6' }}
+                  >
+                    {diff.toLowerCase()}
+                  </div>
+                  <div className="text-xs font-['Patrick_Hand'] font-bold text-white">
+                    {beaten} <span className="text-neutral-500">/ {lvlsInDiff.length}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
   // Escape key to close modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -422,7 +552,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
           <div>
             <h2 className="text-3xl sm:text-4xl font-bold font-['Caveat'] tracking-wide text-neutral-100 lowercase">
-              player profile
+              profile
             </h2>
           </div>
 
@@ -444,6 +574,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               sound.playClick();
               setTab('profile');
               setViewedPlayer(null);
+              setShowSkinInViewedProfile(false);
             }}
             className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer ${
               tab === 'profile'
@@ -458,6 +589,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               sound.playClick();
               setTab('leaderboard');
               setViewedPlayer(null);
+              setShowSkinInViewedProfile(false);
             }}
             className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               tab === 'leaderboard'
@@ -472,6 +604,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               sound.playClick();
               setTab('search');
               setViewedPlayer(null);
+              setShowSkinInViewedProfile(false);
             }}
             className={`flex-1 py-1.5 rounded-xl font-['Patrick_Hand'] text-base lowercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               tab === 'search'
@@ -552,7 +685,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                        <h3 className="text-xl font-black font-['Russo_One'] text-white leading-none">
+                        <h3 className="text-2xl font-bold font-['Patrick_Hand'] text-white leading-none">
                           {currentProfile.username}
                         </h3>
                         {isMisioriUser(currentProfile.username, currentProfile.email) && (
@@ -636,11 +769,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <Award className="w-3.5 h-3.5" />
                       {totalPts.toLocaleString()} pts
                     </span>
-                    {bonusPts > 0 && (
-                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-400 block mt-0.5 lowercase">
-                        +{bonusPts.toLocaleString()} from dailies
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

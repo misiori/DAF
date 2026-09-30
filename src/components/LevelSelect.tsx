@@ -34,12 +34,32 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
   const [selectedLevel, setSelectedLevel] = useState<LevelConfig>(LEVELS[0]);
   const [showModal, setShowModal] = useState<boolean>(false);
 
-  // Check how many levels beaten (100% completed)
-  const beatenSet = new Set(profile.beaten_levels || []);
-  const beatenLevelsCount = LEVELS.filter((lvl) => {
-    const p = profile.level_progress?.[lvl.id] ?? (beatenSet.has(lvl.id) ? 100 : 0);
-    return p >= 100 || beatenSet.has(lvl.id);
-  }).length;
+  // Reliable level beaten and progress check supporting both number and string keys
+  const isLevelBeaten = (lvlId: number) => {
+    const numId = Number(lvlId);
+    const strId = String(lvlId);
+    const beatenList = (profile.beaten_levels || []).map(Number);
+    if (beatenList.includes(numId)) return true;
+    const p = profile.level_progress?.[numId] ?? profile.level_progress?.[strId] ?? 0;
+    return Number(p) >= 100;
+  };
+
+  const getLevelProgress = (lvlId: number) => {
+    if (isLevelBeaten(lvlId)) return 100;
+    const numId = Number(lvlId);
+    const strId = String(lvlId);
+    const p = profile.level_progress?.[numId] ?? profile.level_progress?.[strId] ?? 0;
+    return Math.min(100, Math.max(0, Math.round(Number(p) || 0)));
+  };
+
+  const getLevelHighScore = (lvlId: number) => {
+    const numId = Number(lvlId);
+    const strId = String(lvlId);
+    const score = profile.high_scores?.[numId] ?? profile.high_scores?.[strId] ?? 0;
+    return Number(score) || 0;
+  };
+
+  const beatenLevelsCount = LEVELS.filter((lvl) => isLevelBeaten(lvl.id)).length;
   const allLevelsBeaten = beatenLevelsCount >= LEVELS.length;
 
   const filteredLevels =
@@ -49,9 +69,9 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
       ? [FREE_MODE_LEVEL]
       : LEVELS.filter((lvl) => lvl.difficulty.toLowerCase() === filterDifficulty);
 
-  const selectedProgress =
-    profile.level_progress?.[selectedLevel.id] ?? (beatenSet.has(selectedLevel.id) ? 100 : 0);
-  const isSelectedBeaten = selectedProgress >= 100 || beatenSet.has(selectedLevel.id);
+  const selectedProgress = getLevelProgress(selectedLevel.id);
+  const isSelectedBeaten = isLevelBeaten(selectedLevel.id);
+  const selectedHighScore = getLevelHighScore(selectedLevel.id);
 
   const handleLevelClick = (lvl: LevelConfig) => {
     sound.playClick();
@@ -151,8 +171,9 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto pr-1 pb-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
           {filteredLevels.map((lvl) => {
-            const progress = profile.level_progress?.[lvl.id] ?? (beatenSet.has(lvl.id) ? 100 : 0);
-            const isBeaten = progress >= 100 || beatenSet.has(lvl.id);
+            const progress = getLevelProgress(lvl.id);
+            const isBeaten = isLevelBeaten(lvl.id);
+            const highScore = getLevelHighScore(lvl.id);
             const isFree = lvl.isEndless;
             const diffColor = DIFFICULTY_COLORS[lvl.difficulty] || '#3b82f6';
 
@@ -199,17 +220,24 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-800/60">
-                  {/* Status of beating chamber / percent */}
-                  {isBeaten ? (
-                    <div className="flex items-center gap-1 text-xs font-['Patrick_Hand'] text-emerald-400 font-bold lowercase">
-                      <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-400 text-neutral-950 inline-block" />
-                      <span>100% beaten</span>
-                    </div>
-                  ) : (
-                    <div className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
-                      <span>{Math.round(progress)}%</span>
-                    </div>
-                  )}
+                  {/* Status of beating chamber / percent & best pts */}
+                  <div className="flex items-center gap-2">
+                    {isBeaten ? (
+                      <div className="flex items-center gap-1 text-xs font-['Patrick_Hand'] text-emerald-400 font-bold lowercase">
+                        <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-400 text-neutral-950 inline-block" />
+                        <span>100% beaten</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
+                        <span>{progress}%</span>
+                      </div>
+                    )}
+                    {highScore > 0 && (
+                      <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase">
+                        • {highScore.toLocaleString()} pts
+                      </span>
+                    )}
+                  </div>
 
                   <div className="w-7 h-7 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-800 group-hover:bg-white group-hover:text-black text-neutral-400 border border-neutral-700 flex items-center justify-center transition-colors">
                     <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
@@ -266,8 +294,8 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                 </span>
               </div>
 
-              {/* Progress status */}
-              <div className="mb-6">
+              {/* Progress & high score status */}
+              <div className="mb-6 space-y-1">
                 {isSelectedBeaten ? (
                   <div className="inline-flex items-center gap-1.5 text-sm font-['Patrick_Hand'] text-emerald-400 font-bold lowercase px-3 py-1 rounded-full bg-emerald-950/40 border border-emerald-800/40">
                     <CheckCircle2 className="w-4 h-4 fill-emerald-400 text-neutral-950" />
@@ -275,7 +303,12 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
                   </div>
                 ) : (
                   <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase">
-                    progress: {Math.round(selectedProgress)}%
+                    progress: {selectedProgress}%
+                  </div>
+                )}
+                {selectedHighScore > 0 && (
+                  <div className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
+                    best: {selectedHighScore.toLocaleString()} pts
                   </div>
                 )}
               </div>

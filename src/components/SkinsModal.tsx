@@ -174,8 +174,16 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     onClick={() => {
-                      sound.playClick();
                       setSelectedPreview(skin);
+                      if (unlocked) {
+                        sound.playClick();
+                        onSelectSkin(skin.id);
+                      } else if (sugarCubes >= skin.cost) {
+                        sound.playSugarCollect();
+                        onUnlockSkin(skin.id, skin.cost);
+                      } else {
+                        sound.playHitSound();
+                      }
                     }}
                     className={`group relative flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
@@ -232,40 +240,43 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Right Live Test Pad & Details */}
-          <div className="lg:col-span-4 flex flex-col justify-between bg-neutral-950/90 rounded-2xl border border-neutral-800 p-4">
+          {/* Right Live Test Pad & Details (Completely hidden on phones per request) */}
+          <div className="hidden sm:flex lg:col-span-4 flex-col justify-between bg-neutral-950/90 rounded-2xl border border-neutral-800 p-4">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase tracking-wider flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5 text-neutral-300" />
-                  reticle test
-                </span>
-                <span
-                  className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-md"
-                  style={{ color: selectedPreview.color, background: `${selectedPreview.color}20` }}
-                >
-                  {(selectedPreview.rarity || 'common').toLowerCase()}
-                </span>
-              </div>
+              {/* Desktop / tablet reticle test pad */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase tracking-wider flex items-center gap-1">
+                    <Eye className="w-3.5 h-3.5 text-neutral-300" />
+                    reticle test
+                  </span>
+                  <span
+                    className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-md"
+                    style={{ color: selectedPreview.color, background: `${selectedPreview.color}20` }}
+                  >
+                    {(selectedPreview.rarity || 'common').toLowerCase()}
+                  </span>
+                </div>
 
-              {/* Interactive mouse tracking box */}
-              <div
-                ref={previewAreaRef}
-                onMouseMove={handleMouseMove}
-                className="relative h-44 rounded-xl border border-dashed border-neutral-800 bg-neutral-900/70 overflow-hidden cursor-none flex items-center justify-center select-none shadow-inner"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(#ffffff08_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
-
-                {/* Simulated cursor following mouse */}
+                {/* Interactive mouse tracking box */}
                 <div
-                  className="absolute pointer-events-none transition-transform duration-75 ease-out"
-                  style={{
-                    left: testMousePos.x,
-                    top: testMousePos.y,
-                    transform: 'translate(-50%, -50%)',
-                  }}
+                  ref={previewAreaRef}
+                  onMouseMove={handleMouseMove}
+                  className="relative h-44 rounded-xl border border-dashed border-neutral-800 bg-neutral-900/70 overflow-hidden cursor-none flex items-center justify-center select-none shadow-inner"
                 >
-                  <SkinRenderer skinId={selectedPreview.id} size={38} />
+                  <div className="absolute inset-0 bg-[radial-gradient(#ffffff08_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+
+                  {/* Simulated cursor following mouse */}
+                  <div
+                    className="absolute pointer-events-none transition-transform duration-75 ease-out"
+                    style={{
+                      left: testMousePos.x,
+                      top: testMousePos.y,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  >
+                    <SkinRenderer skinId={selectedPreview.id} size={38} />
+                  </div>
                 </div>
               </div>
 

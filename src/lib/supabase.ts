@@ -409,7 +409,7 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, avatar_url, created_at')
+      .select('id, username, email, active_skin, unlocked_skins, sugar_cubes, high_scores, beaten_levels, avatar_url, created_at, bonus_pts')
       .limit(30);
 
     const misioriVerified: PlayerProfile & { total_pts: number; levels_cleared: number } = {
@@ -421,7 +421,8 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
       sugar_cubes: 9999,
       high_scores: { 1: 5200, 2: 6100, 3: 5800, 21: 9400, 22: 10200, 23: 11500 },
       beaten_levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
-      total_pts: 28450,
+      bonus_pts: 2500,
+      total_pts: 30950,
       levels_cleared: 23,
     };
 
@@ -431,7 +432,8 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
 
     const players: (PlayerProfile & { total_pts: number; levels_cleared: number })[] = data.map((row) => {
       const highScores = (row.high_scores as Record<string, number>) || {};
-      const total_pts = Object.values(highScores).reduce((a, b) => a + (Number(b) || 0), 0);
+      const bonusPts = Number(row.bonus_pts) || 0;
+      const total_pts = Object.values(highScores).reduce((a, b) => a + (Number(b) || 0), 0) + bonusPts;
       const beaten = Array.isArray(row.beaten_levels) ? row.beaten_levels : [];
       const levels_cleared = beaten.length;
 
@@ -444,6 +446,7 @@ export async function fetchLeaderboard(): Promise<(PlayerProfile & { total_pts: 
         sugar_cubes: row.sugar_cubes || 0,
         high_scores: highScores,
         beaten_levels: beaten,
+        bonus_pts: bonusPts,
         avatar_url: row.avatar_url,
         created_at: row.created_at,
         total_pts,

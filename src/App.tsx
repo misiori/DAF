@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IntroScreen } from './components/IntroScreen';
 import { MainMenu } from './components/MainMenu';
@@ -106,104 +106,205 @@ export default function App() {
 
   // Update profile in state and persistence (Supabase + LocalStorage)
   const handleUpdateProfile = (updated: PlayerProfile) => {
-    setProfile(updated);
-    saveGuestProfile(updated);
-    if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
-      updateProfile(updated.id, {
-        active_skin: updated.active_skin,
-        unlocked_skins: updated.unlocked_skins,
-        sugar_cubes: updated.sugar_cubes,
-        high_scores: updated.high_scores,
-        beaten_levels: updated.beaten_levels,
-        level_progress: updated.level_progress,
-        daily_challenges: updated.daily_challenges,
-        bonus_pts: updated.bonus_pts,
-        avatar_url: updated.avatar_url,
-      });
-    }
+    setProfile((prevProfile) => {
+      const merged: PlayerProfile = {
+        ...prevProfile,
+        ...updated,
+        sugar_cubes: updated.sugar_cubes ?? prevProfile.sugar_cubes,
+        active_skin: updated.active_skin || prevProfile.active_skin,
+        unlocked_skins: Array.from(new Set([...(prevProfile.unlocked_skins || ['amber']), ...(updated.unlocked_skins || ['amber'])])),
+        beaten_levels: Array.from(
+          new Set([
+            ...(prevProfile.beaten_levels || []).map(Number),
+            ...(updated.beaten_levels || []).map(Number),
+          ])
+        ),
+        high_scores: {
+          ...(prevProfile.high_scores || {}),
+          ...(updated.high_scores || {}),
+        },
+        level_progress: {
+          ...(prevProfile.level_progress || {}),
+          ...(updated.level_progress || {}),
+        },
+      };
+
+      saveGuestProfile(merged);
+      if (merged.id !== 'guest' && !merged.id.startsWith('guest_')) {
+        updateProfile(merged.id, merged);
+      }
+      return merged;
+    });
   };
 
   const handleSelectSkin = (skinId: string) => {
-    const updated: PlayerProfile = {
-      ...profile,
-      active_skin: skinId,
-    };
-    handleUpdateProfile(updated);
+    setProfile((prev) => {
+      const updated: PlayerProfile = {
+        ...prev,
+        active_skin: skinId,
+      };
+      saveGuestProfile(updated);
+      if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
+        updateProfile(updated.id, { active_skin: skinId });
+      }
+      return updated;
+    });
   };
 
   const handleUnlockSkin = (skinId: string, cost: number) => {
-    if (profile.sugar_cubes >= cost && !profile.unlocked_skins.includes(skinId)) {
-      const updated: PlayerProfile = {
-        ...profile,
-        sugar_cubes: profile.sugar_cubes - cost,
-        unlocked_skins: [...profile.unlocked_skins, skinId],
-        active_skin: skinId,
-      };
-      handleUpdateProfile(updated);
-    }
+    setProfile((prev) => {
+      if (prev.sugar_cubes >= cost && !prev.unlocked_skins.includes(skinId)) {
+        const updated: PlayerProfile = {
+          ...prev,
+          sugar_cubes: prev.sugar_cubes - cost,
+          unlocked_skins: [...prev.unlocked_skins, skinId],
+          active_skin: skinId,
+        };
+        saveGuestProfile(updated);
+        if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
+          updateProfile(updated.id, {
+            sugar_cubes: updated.sugar_cubes,
+            unlocked_skins: updated.unlocked_skins,
+            active_skin: updated.active_skin,
+          });
+        }
+        return updated;
+      }
+      return prev;
+    });
   };
 
-  const handleGameOver = (finalScore: number, sugarEarned: number, progressPercent = 0) => {
-    if (!selectedLevel) return;
-    const currentHigh = profile.high_scores[selectedLevel.id] || 0;
-    const newHigh = Math.max(currentHigh, finalScore);
+  const handleGameOver = useCallback(
+    (lvlId: number, finalScore: number, sugarEarned: number, progressPercent = 0, isEndless = false) => {
+      const idNum = Number(lvlId);
 
-    const prevProgress = profile.level_progress?.[selectedLevel.id] || 0;
-    const newProgress = Math.max(prevProgress, Math.round(progressPercent));
-    const currentBeaten = new Set(profile.beaten_levels || []);
+      setProfile((prevProfile) => {
+        const currentHigh =
+          prevProfile.high_scores?.[idNum] ??
+          prevProfile.high_scores?.[String(idNum)] ??
+          0;
+        const newHigh = Math.max(Number(currentHigh) || 0, finalScore);
 
-    if (newProgress >= 100 && !selectedLevel.isEndless) {
-      currentBeaten.add(Number(selectedLevel.id));
-    }
+        const prevProgress =
+          prevProfile.level_progress?.[idNum] ??
+          prevProfile.level_progress?.[String(idNum)] ??
+          0;
+        const newProgress = Math.min(100, Math.max(Number(prevProgress) || 0, Math.round(progressPercent)));
 
-    const updated: PlayerProfile = {
-      ...profile,
-      sugar_cubes: profile.sugar_cubes + sugarEarned,
-      high_scores: {
-        ...profile.high_scores,
-        [selectedLevel.id]: newHigh,
-      },
-      level_progress: {
-        ...(profile.level_progress || {}),
-        [selectedLevel.id]: newProgress,
-      },
-      beaten_levels: Array.from(currentBeaten),
-    };
-    handleUpdateProfile(updated);
-  };
+        const beatenSet = new Set((prevProfile.beaten_levels || []).map(Number));
+        if (newProgress >= 100 && !isEndless) {
+          beatenSet.add(idNum);
+        }
 
-  const handleVictory = (finalScore: number, sugarEarned: number) => {
-    if (!selectedLevel) return;
-    const currentHigh = profile.high_scores[selectedLevel.id] || 0;
-    const newHigh = Math.max(currentHigh, finalScore);
-    const victoryBonus = 25;
+        const updatedProgress: Record<string | number, number> = {
+          ...(prevProfile.level_progress || {}),
+          [idNum]: newProgress,
+          [String(idNum)]: newProgress,
+        };
 
-    // Level beaten 100% till the end! Add to beaten_levels
-    const currentBeaten = new Set(profile.beaten_levels || []);
-    if (!selectedLevel.isEndless) {
-      currentBeaten.add(Number(selectedLevel.id));
-    }
+        const updatedHighScores: Record<string, number> = {
+          ...(prevProfile.high_scores || {}),
+          [idNum]: newHigh,
+          [String(idNum)]: newHigh,
+        };
 
-    const updated: PlayerProfile = {
-      ...profile,
-      sugar_cubes: profile.sugar_cubes + sugarEarned + victoryBonus,
-      high_scores: {
-        ...profile.high_scores,
-        [selectedLevel.id]: newHigh,
-      },
-      level_progress: {
-        ...(profile.level_progress || {}),
-        [selectedLevel.id]: 100,
-      },
-      beaten_levels: Array.from(currentBeaten),
-    };
-    handleUpdateProfile(updated);
-  };
+        let updated: PlayerProfile = {
+          ...prevProfile,
+          sugar_cubes: (prevProfile.sugar_cubes || 0) + sugarEarned,
+          high_scores: updatedHighScores,
+          level_progress: updatedProgress,
+          beaten_levels: Array.from(beatenSet),
+        };
 
-  const handleDailyChallengeProgress = (event: ChallengeEvent) => {
-    const { updatedProfile } = recordChallengeEvent(profile, event);
-    handleUpdateProfile(updatedProfile);
-  };
+        // Track daily challenge progress atomically
+        const r = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
+        updated = r.updatedProfile;
+
+        saveGuestProfile(updated);
+        if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
+          updateProfile(updated.id, {
+            sugar_cubes: updated.sugar_cubes,
+            high_scores: updated.high_scores,
+            beaten_levels: updated.beaten_levels,
+            level_progress: updated.level_progress,
+            daily_challenges: updated.daily_challenges,
+          });
+        }
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleVictory = useCallback(
+    (lvlId: number, finalScore: number, sugarEarned: number, difficulty: string, isEndless = false) => {
+      const idNum = Number(lvlId);
+      const victoryBonus = 25;
+
+      setProfile((prevProfile) => {
+        const currentHigh =
+          prevProfile.high_scores?.[idNum] ??
+          prevProfile.high_scores?.[String(idNum)] ??
+          0;
+        const newHigh = Math.max(Number(currentHigh) || 0, finalScore);
+
+        const beatenSet = new Set((prevProfile.beaten_levels || []).map(Number));
+        if (!isEndless) {
+          beatenSet.add(idNum);
+        }
+
+        const updatedProgress: Record<string | number, number> = {
+          ...(prevProfile.level_progress || {}),
+          [idNum]: 100,
+          [String(idNum)]: 100,
+        };
+
+        const updatedHighScores: Record<string, number> = {
+          ...(prevProfile.high_scores || {}),
+          [idNum]: newHigh,
+          [String(idNum)]: newHigh,
+        };
+
+        let updated: PlayerProfile = {
+          ...prevProfile,
+          sugar_cubes: (prevProfile.sugar_cubes || 0) + sugarEarned + victoryBonus,
+          high_scores: updatedHighScores,
+          level_progress: updatedProgress,
+          beaten_levels: Array.from(beatenSet),
+        };
+
+        // Atomically update daily challenges within this same update
+        const r1 = recordChallengeEvent(updated, { type: 'beat_hard', difficulty: difficulty as any });
+        updated = r1.updatedProfile;
+        const r2 = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
+        updated = r2.updatedProfile;
+
+        saveGuestProfile(updated);
+        if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
+          updateProfile(updated.id, {
+            sugar_cubes: updated.sugar_cubes,
+            high_scores: updated.high_scores,
+            beaten_levels: updated.beaten_levels,
+            level_progress: updated.level_progress,
+            daily_challenges: updated.daily_challenges,
+          });
+        }
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleDailyChallengeProgress = useCallback((event: ChallengeEvent) => {
+    setProfile((prevProfile) => {
+      const { updatedProfile } = recordChallengeEvent(prevProfile, event);
+      saveGuestProfile(updatedProfile);
+      if (updatedProfile.id !== 'guest' && !updatedProfile.id.startsWith('guest_')) {
+        updateProfile(updatedProfile.id, { daily_challenges: updatedProfile.daily_challenges });
+      }
+      return updatedProfile;
+    });
+  }, []);
 
   const toggleMute = () => {
     const muted = sound.toggleMute();
