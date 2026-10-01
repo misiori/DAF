@@ -5,7 +5,7 @@
   "description": "rhythm-based game by misiori",
   "author": "misiori",
   "type": "module",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
