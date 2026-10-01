@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -18,10 +18,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Build AppImage
         run: npm run electron:build
@@ -30,4 +29,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dangerous-ant-farm-appimage
-          path: dist/*.AppImage
+          path: release/*.AppImage
+          if-no-files-found: error
