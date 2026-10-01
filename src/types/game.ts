@@ -52,6 +52,8 @@ export interface Ant {
   buffed?: boolean;
   targetAngleOffset?: number;
   honeyFreezeTimer?: number;
+  isBoss?: boolean;
+bossSizeBoost?: number;
 }
 
 export interface Anthill {

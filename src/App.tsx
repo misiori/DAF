@@ -181,6 +181,9 @@ export default function App() {
     });
   };
 
+  // === GAME OVER (loss or manual exit) ===
+  // IMPORTANT: this NEVER marks a level as beaten and NEVER writes 100% progress.
+  // Only onVictory is allowed to do that. Progress is clamped to 99% max.
   const handleGameOver = useCallback(
     (lvlId: number, finalScore: number, sugarEarned: number, progressPercent = 0, isEndless = false) => {
       const idNum = Number(lvlId);
@@ -196,12 +199,13 @@ export default function App() {
           prevProfile.level_progress?.[idNum] ??
           prevProfile.level_progress?.[String(idNum)] ??
           0;
-        const newProgress = Math.min(100, Math.max(Number(prevProgress) || 0, Math.round(progressPercent)));
 
+        // Clamp to 99% — even if GameCanvas sends 100, we never store 100 from onGameOver.
+        const clampedIncoming = Math.min(99, Math.round(progressPercent));
+        const newProgress = Math.min(99, Math.max(Number(prevProgress) || 0, clampedIncoming));
+
+        // beaten_levels is NOT touched here. Only onVictory adds to it.
         const beatenSet = new Set((prevProfile.beaten_levels || []).map(Number));
-        if (newProgress >= 100 && !isEndless) {
-          beatenSet.add(idNum);
-        }
 
         const updatedProgress: Record<string | number, number> = {
           ...(prevProfile.level_progress || {}),
@@ -223,7 +227,6 @@ export default function App() {
           beaten_levels: Array.from(beatenSet),
         };
 
-        // Track daily challenge progress atomically
         const r = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
         updated = r.updatedProfile;
 
@@ -243,6 +246,8 @@ export default function App() {
     []
   );
 
+  // === VICTORY (real, no-noclip completion) ===
+  // Only this function can set level_progress to 100 and add to beaten_levels.
   const handleVictory = useCallback(
     (lvlId: number, finalScore: number, sugarEarned: number, difficulty: string, isEndless = false) => {
       const idNum = Number(lvlId);
@@ -280,7 +285,6 @@ export default function App() {
           beaten_levels: Array.from(beatenSet),
         };
 
-        // Atomically update daily challenges within this same update
         const r1 = recordChallengeEvent(updated, { type: 'beat_hard', difficulty: difficulty as any });
         updated = r1.updatedProfile;
         const r2 = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });

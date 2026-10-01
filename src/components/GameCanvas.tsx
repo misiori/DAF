@@ -19,14 +19,13 @@ import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
 
-// === HANDWRITTEN FONT CONSTANTS (single source of truth) ===
+// === HANDWRITTEN FONT CONSTANTS ===
 const HAND_FONT = "'Patrick_Hand', cursive";
 const HAND_BOLD_SM = "bold 13px 'Patrick_Hand', cursive";
 const HAND_BOLD_MD = "bold 15px 'Patrick_Hand', cursive";
 const HAND_REG_MD = "14px 'Patrick_Hand', cursive";
 
 // === PER-LEVEL SPAWN BEHAVIOR TABLE ===
-// Controls how each level feels unique: how ants move, what types spawn, how often
 interface LevelSpawnStyle {
   formation: 'direct' | 'orbit' | 'zigzag' | 'spiral' | 'twin';
   volleySize: number;
@@ -38,37 +37,26 @@ interface LevelSpawnStyle {
 }
 
 const LEVEL_SPAWN_STYLES: Record<number, LevelSpawnStyle> = {
-  // EASY — slower, predictable, workers mostly
   1:  { formation: 'direct', volleySize: 1, volleyInterval: 3.2, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.85, homing: 0.7 },
   2:  { formation: 'orbit',  volleySize: 1, volleyInterval: 2.8, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.90, homing: 0.8 },
   3:  { formation: 'zigzag', volleySize: 1, volleyInterval: 2.6, fireChance: 0.05, acidChance: 0.00, antSpeedBoost: 0.95, homing: 0.85 },
   4:  { formation: 'direct', volleySize: 2, volleyInterval: 2.4, fireChance: 0.00, acidChance: 0.05, antSpeedBoost: 1.00, homing: 0.9 },
-
-  // NORMAL — mixed, faster, some acid
   5:  { formation: 'orbit',  volleySize: 2, volleyInterval: 2.1, fireChance: 0.08, acidChance: 0.05, antSpeedBoost: 1.05, homing: 0.9 },
   6:  { formation: 'twin',   volleySize: 2, volleyInterval: 2.0, fireChance: 0.10, acidChance: 0.08, antSpeedBoost: 1.05, homing: 0.95 },
   7:  { formation: 'zigzag', volleySize: 2, volleyInterval: 1.9, fireChance: 0.12, acidChance: 0.10, antSpeedBoost: 1.10, homing: 0.95 },
   8:  { formation: 'spiral', volleySize: 3, volleyInterval: 1.9, fireChance: 0.10, acidChance: 0.12, antSpeedBoost: 1.10, homing: 0.95 },
-
-  // HARD — dense volleys, more specials
   9:  { formation: 'direct', volleySize: 3, volleyInterval: 1.7, fireChance: 0.18, acidChance: 0.15, antSpeedBoost: 1.15, homing: 1.0 },
   10: { formation: 'spiral', volleySize: 3, volleyInterval: 1.6, fireChance: 0.20, acidChance: 0.18, antSpeedBoost: 1.20, homing: 1.0 },
   11: { formation: 'orbit',  volleySize: 3, volleyInterval: 1.6, fireChance: 0.18, acidChance: 0.22, antSpeedBoost: 1.20, homing: 1.0 },
   12: { formation: 'twin',   volleySize: 4, volleyInterval: 1.5, fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.25, homing: 1.0 },
-
-  // HARDER — very dense, aggressive
   13: { formation: 'spiral', volleySize: 4, volleyInterval: 1.4, fireChance: 0.28, acidChance: 0.25, antSpeedBoost: 1.30, homing: 1.0 },
   14: { formation: 'zigzag', volleySize: 4, volleyInterval: 1.4, fireChance: 0.30, acidChance: 0.30, antSpeedBoost: 1.30, homing: 1.0 },
   15: { formation: 'direct', volleySize: 5, volleyInterval: 1.3, fireChance: 0.30, acidChance: 0.28, antSpeedBoost: 1.35, homing: 1.0 },
   16: { formation: 'orbit',  volleySize: 5, volleyInterval: 1.3, fireChance: 0.28, acidChance: 0.35, antSpeedBoost: 1.35, homing: 1.0 },
-
-  // INSANE — bullet-hell
   17: { formation: 'spiral', volleySize: 5, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
   18: { formation: 'twin',   volleySize: 6, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
   19: { formation: 'zigzag', volleySize: 6, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.35, antSpeedBoost: 1.50, homing: 1.0 },
   20: { formation: 'direct', volleySize: 7, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.40, antSpeedBoost: 1.55, homing: 1.0 },
-
-  // CRAZY — chaotic
   21: { formation: 'spiral', volleySize: 7, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.40, antSpeedBoost: 1.60, homing: 1.0 },
   22: { formation: 'twin',   volleySize: 8, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.45, antSpeedBoost: 1.65, homing: 1.0 },
   23: { formation: 'spiral', volleySize: 9, volleyInterval: 0.8, fireChance: 0.50, acidChance: 0.50, antSpeedBoost: 1.70, homing: 1.0 },
@@ -95,6 +83,37 @@ function getSpawnStyle(levelId: number, difficulty: string): LevelSpawnStyle {
     acidChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.acidChance * mult),
     antSpeedBoost: DEFAULT_SPAWN_STYLE.antSpeedBoost * mult,
   };
+}
+
+// === PHASE-BASED SPAWN CONTROL ===
+type PhaseNumber = 1 | 2 | 3;
+
+function getBreakDuration(difficulty: string): number {
+  return difficulty === 'Crazy' ? 12 : 10;
+}
+
+function getPhase(
+  gameTime: number,
+  duration: number,
+  breakDuration: number
+): PhaseNumber {
+  const breakStart = (duration - breakDuration) / 2;
+  const breakEnd = breakStart + breakDuration;
+  if (gameTime < breakStart) return 1;
+  if (gameTime < breakEnd) return 3;
+  return 2;
+}
+
+function getPhaseInterval(difficulty: string): number {
+  switch (difficulty) {
+    case 'Easy': return 5.0;
+    case 'Normal': return 4.0;
+    case 'Hard': return 3.0;
+    case 'Harder': return 3.0;
+    case 'Insane': return 2.5;
+    case 'Crazy': return 2.0;
+    default: return 3.5;
+  }
 }
 
 interface GameCanvasProps {
@@ -133,7 +152,6 @@ const getAntSizeForDifficulty = (diff: string, antType: string) => {
   return cfg.worker;
 };
 
-// Top-down hand-drawn sketchy anthill renderer
 function drawHandDrawnAnthill(
   ctx: CanvasRenderingContext2D,
   hill: Anthill,
@@ -428,7 +446,6 @@ function drawHoneyJarPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.restore();
 }
 
-// Queen Cocoon renderer (fixes invisible pod on levels 13 & 23)
 function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   const pr = pod.radius;
   const hp = pod.hp ?? 7;
@@ -438,7 +455,6 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.save();
   ctx.translate(pod.x, pod.y);
 
-  // Pulsing outer glow
   const glowPulse = 0.85 + 0.15 * Math.sin(pod.pulse * 2);
   const glowGrad = ctx.createRadialGradient(0, 0, pr * 0.5, 0, 0, pr * 1.7);
   glowGrad.addColorStop(0, `rgba(244, 63, 94, ${0.35 * glowPulse})`);
@@ -448,7 +464,6 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.arc(0, 0, pr * 1.7, 0, Math.PI * 2);
   ctx.fill();
 
-  // Silk outer cocoon (oval)
   ctx.fillStyle = '#3f1d2e';
   ctx.beginPath();
   ctx.ellipse(0, 0, pr * 0.95, pr * 1.25, 0, 0, Math.PI * 2);
@@ -457,7 +472,6 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Silk strand texture
   ctx.strokeStyle = 'rgba(254, 205, 211, 0.5)';
   ctx.lineWidth = 1;
   for (let i = 0; i < 5; i++) {
@@ -466,7 +480,6 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
     ctx.stroke();
   }
 
-  // Crack lines based on damage
   const crackCount = Math.max(0, maxHp - hp);
   ctx.strokeStyle = '#fecdd3';
   ctx.lineWidth = 1.8;
@@ -479,7 +492,6 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
     ctx.stroke();
   }
 
-  // Central pulsing embryo eye
   ctx.fillStyle = '#f43f5e';
   ctx.beginPath();
   ctx.arc(0, 0, pr * 0.3 * glowPulse, 0, Math.PI * 2);
@@ -489,13 +501,11 @@ function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.arc(0, 0, pr * 0.12, 0, Math.PI * 2);
   ctx.fill();
 
-  // HP indicator in handwritten font
   ctx.fillStyle = '#ffffff';
   ctx.font = HAND_BOLD_MD;
   ctx.textAlign = 'center';
   ctx.fillText(`crack ${hp}`, 0, -pr * 1.5);
 
-  // HP bar
   const barW = pr * 1.8;
   const barH = 3;
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -514,25 +524,45 @@ function drawMainScreenStyleAnt(
   ctx.translate(ant.x, ant.y);
   ctx.rotate(ant.angle);
 
-  const s = Math.min(ant.size, 5.8);
+  const antAny = ant as any;
+  const isBoss = antAny.isBoss === true;
   const isTitan = ant.isBigAnt;
-  const antColor = isTitan ? '#ef4444' : '#ffffff';
 
+  // Boss is 5x the size of a normal ant
+  const baseSize = Math.min(ant.size, 5.8);
+  const s = isBoss ? baseSize * 5 : baseSize;
+
+  // ALL ants are white — bosses too
+  const antColor = '#ffffff';
+
+  // 1. Abdomen
   ctx.fillStyle = antColor;
   ctx.beginPath();
   ctx.ellipse(-s * 0.45, 0, s * 0.52, s * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // 2. Thorax
   ctx.beginPath();
   ctx.ellipse(0, 0, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // 3. Head
   ctx.beginPath();
   ctx.arc(s * 0.45, 0, s * 0.24, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = isTitan ? 'rgba(239, 68, 68, 0.85)' : 'rgba(255, 255, 255, 0.85)';
-  ctx.lineWidth = 0.9;
+  // Boss: subtle outline so it's visible against dark bg
+  if (isBoss) {
+    ctx.strokeStyle = 'rgba(200, 200, 210, 0.75)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(-s * 0.45, 0, s * 0.52, s * 0.34, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 4. Legs
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = isBoss ? 2.2 : 0.9;
   for (let l = -1; l <= 1; l++) {
     const legWiggle = Math.sin(ant.legPhase + l * 2) * 1.2;
     ctx.beginPath();
@@ -543,6 +573,7 @@ function drawMainScreenStyleAnt(
     ctx.stroke();
   }
 
+  // 5. Antennae
   ctx.beginPath();
   ctx.moveTo(s * 0.52, -0.6);
   ctx.lineTo(s * 0.8, -s * 0.3);
@@ -550,6 +581,7 @@ function drawMainScreenStyleAnt(
   ctx.lineTo(s * 0.8, s * 0.3);
   ctx.stroke();
 
+  // Honey freeze timer
   if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
     ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
     ctx.beginPath();
@@ -580,7 +612,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // === WAIT FOR HANDWRITTEN FONTS TO LOAD BEFORE RENDERING CANVAS TEXT ===
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
@@ -604,7 +635,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => { cancelled = true; };
   }, []);
 
-  // Countdown & Game state
   const [countdown, setCountdown] = useState<number | null>(3);
   const [isPaused, setIsPaused] = useState(false);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
@@ -618,6 +648,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [freeModeSecondsLeft, setFreeModeSecondsLeft] = useState<number>(15);
   const [isHeaderStopped, setIsHeaderStopped] = useState(false);
   const isHeaderStoppedRef = useRef(false);
+
+  // === NOCLIP ===
+  const [noclip, setNoclip] = useState(false);
+  const noclipRef = useRef(false);
+  const noclipHitsRef = useRef(0);
+  const [noclipFailed, setNoclipFailed] = useState(false);
+  const [noclipHitCount, setNoclipHitCount] = useState(0);
 
   const activeSkin = getSkinById(profile.active_skin);
 
@@ -634,6 +671,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const freezeTimerRef = useRef(0);
   const clickRepulseCooldownRef = useRef(0);
   const lastVolleyIndexRef = useRef(-1);
+  const lastPhaseRef = useRef<PhaseNumber>(1);
 
   const freeModeTimerRef = useRef(15);
   const currentDiffRef = useRef<string>(level.difficulty);
@@ -721,6 +759,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  useEffect(() => {
+    noclipRef.current = noclip;
+  }, [noclip]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -844,6 +886,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     honeyTrapsRef.current = [];
     bonusShieldsAwardedRef.current = 0;
     lastVolleyIndexRef.current = -1;
+    lastPhaseRef.current = 1;
+    noclipHitsRef.current = 0;
+    setNoclipFailed(false);
+    setNoclipHitCount(0);
 
     setCountdown(3);
     countdownRef.current = 3;
@@ -1041,43 +1087,47 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     anthillsRef.current = hills;
 
+    // === 2 FIXED BOSS ANTS ===
     const initialAnts: Ant[] = [];
-    if (level.difficulty === 'Crazy' || (level.isEndless && currentDiffRef.current === 'Crazy')) {
-      initialAnts.push(
-        {
-          id: 9001,
-          x: boxCenterX - (boxRight - boxLeft) * 0.25,
-          y: boxCenterY - (boxBottom - boxTop) * 0.2,
-          vx: 0,
-          vy: 0,
-          speed: 2.2,
-          size: 22,
-          type: 'titan',
-          angle: 0,
-          legPhase: 0,
-          health: 12,
-          isBigAnt: true,
-          bigAntIndex: 0,
-          rallyCooldown: 120,
-        },
-        {
-          id: 9002,
-          x: boxCenterX + (boxRight - boxLeft) * 0.25,
-          y: boxCenterY + (boxBottom - boxTop) * 0.2,
-          vx: 0,
-          vy: 0,
-          speed: 2.2,
-          size: 22,
-          type: 'titan',
-          angle: Math.PI,
-          legPhase: 3.14,
-          health: 12,
-          isBigAnt: true,
-          bigAntIndex: 1,
-          rallyCooldown: 260,
-        }
-      );
-    }
+    const bossBaseSize = 5.8;
+    const bossHealth = 6;
+    const bossSpeed = 1.6;
+
+    initialAnts.push(
+      {
+        id: 9001,
+        x: boxCenterX - (boxRight - boxLeft) * 0.25,
+        y: boxCenterY - (boxBottom - boxTop) * 0.2,
+        vx: 0,
+        vy: 0,
+        speed: bossSpeed,
+        size: bossBaseSize,
+        type: 'worker',
+        angle: 0,
+        legPhase: 0,
+        health: bossHealth,
+        isBigAnt: false,
+        // @ts-ignore
+        isBoss: true,
+      } as Ant,
+      {
+        id: 9002,
+        x: boxCenterX + (boxRight - boxLeft) * 0.25,
+        y: boxCenterY + (boxBottom - boxTop) * 0.2,
+        vx: 0,
+        vy: 0,
+        speed: bossSpeed,
+        size: bossBaseSize,
+        type: 'worker',
+        angle: Math.PI,
+        legPhase: 3.14,
+        health: bossHealth,
+        isBigAnt: false,
+        // @ts-ignore
+        isBoss: true,
+      } as Ant
+    );
+
     antsRef.current = initialAnts;
     portalsRef.current = [];
     sugarCubesRef.current = [];
@@ -1215,6 +1265,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             if (adist <= 240) {
               addParticles(ant.x, ant.y, 6, '#ef4444');
               scoreRef.current += 15;
+              const antAny = ant as any;
+              if (antAny.isBoss) return true;
               if (ant.isBigAnt) {
                 ant.health -= 3;
                 return ant.health > 0;
@@ -1253,6 +1305,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           antsRef.current = antsRef.current.filter((ant) => {
             const adist = Math.hypot(ant.x - pod.x, ant.y - pod.y);
             if (adist <= 300) {
+              const antAny = ant as any;
+              if (antAny.isBoss) return true;
               addParticles(ant.x, ant.y, 6, '#ef4444');
               scoreRef.current += 20;
               return false;
@@ -1286,18 +1340,49 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     });
 
     antsRef.current.forEach((ant) => {
-      if (ant.isBigAnt) {
+      const antAny = ant as any;
+      if (antAny.isBoss || ant.isBigAnt) {
+        const hitRadius = antAny.isBoss ? ant.size * 5 + 24 : ant.size + 24;
         const dist = Math.hypot(clickX - ant.x, clickY - ant.y);
-        if (dist <= ant.size + 24) {
+        if (dist <= hitRadius) {
           targetHit = true;
           sound.playZap();
           ant.health = Math.max(0, ant.health - 1);
-          addParticles(ant.x, ant.y, 8, '#f43f5e');
-          const knockAngle = Math.atan2(ant.y - clickY, ant.x - clickX);
-          ant.x += Math.cos(knockAngle) * 45;
-          ant.y += Math.sin(knockAngle) * 45;
-          shakeRef.current = 10;
-          addFloatingText(`staggered! ${ant.health} hp`, ant.x, ant.y - 25, '#fb7185');
+
+          if (ant.health <= 0) {
+            sound.playExplosion();
+            shakeRef.current = 24;
+            shockwavesRef.current.push({
+              x: ant.x,
+              y: ant.y,
+              radius: 10,
+              maxRadius: 220,
+              color: '#fbbf24',
+            });
+            scoreRef.current += antAny.isBoss ? 2000 : 500;
+            sugarRef.current += antAny.isBoss ? 8 : 3;
+            setScore(scoreRef.current);
+            setSugarCollected(sugarRef.current);
+            addFloatingText(
+              antAny.isBoss ? 'boss slain! +2000 pts' : 'titan down! +500 pts',
+              ant.x,
+              ant.y - 25,
+              '#fbbf24'
+            );
+            antsRef.current = antsRef.current.filter((a) => a.id !== ant.id);
+          } else {
+            addParticles(ant.x, ant.y, 8, '#ffffff');
+            const knockAngle = Math.atan2(ant.y - clickY, ant.x - clickX);
+            ant.x += Math.cos(knockAngle) * 45;
+            ant.y += Math.sin(knockAngle) * 45;
+            shakeRef.current = 10;
+            addFloatingText(
+              antAny.isBoss ? `boss hit! ${ant.health} hp` : `staggered! ${ant.health} hp`,
+              ant.x,
+              ant.y - 25,
+              '#e5e7eb'
+            );
+          }
         }
       }
     });
@@ -1399,28 +1484,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
-    const bgAntCount = 28;
-    const bgAnts = Array.from({ length: bgAntCount }).map(() => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 1.3,
-      vy: (Math.random() - 0.5) * 1.3,
-      size: Math.random() * 2 + 5,
-      legPhase: Math.random() * 20,
-      opacity: Math.random() * 0.25 + 0.15,
-      tint: 'rgba(230, 240, 255, 0.35)',
-    }));
-
-    const dustMotes = Array.from({ length: 42 }).map(() => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35,
-      size: Math.random() * 2 + 1,
-      alpha: Math.random() * 0.35 + 0.1,
-      phase: Math.random() * Math.PI * 2,
-    }));
-
     const loop = () => {
       const BOX_TOP = height < 440 ? 54 : 72;
       const BOX_BOTTOM = height - 20;
@@ -1473,19 +1536,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         if (isBreachingBorder && borderHitCooldownRef.current <= 0) {
           borderHitCooldownRef.current = 45;
-          healthRef.current -= 1;
-          setHealth(healthRef.current);
-          sound.playHitSound();
-          shakeRef.current = 20;
 
-          addFloatingText('-1 shield', Math.max(BOX_LEFT + 80, Math.min(BOX_RIGHT - 80, mx)), Math.max(BOX_TOP + 30, my), '#ef4444');
-          addParticles(mx, my, 20, '#60a5fa');
+          if (noclipRef.current) {
+            noclipHitsRef.current += 1;
+            addFloatingText('noclip', Math.max(BOX_LEFT + 80, Math.min(BOX_RIGHT - 80, mx)), Math.max(BOX_TOP + 30, my), '#a3e635');
+          } else {
+            healthRef.current -= 1;
+            setHealth(healthRef.current);
+            sound.playHitSound();
+            shakeRef.current = 20;
+            addFloatingText('-1 shield', Math.max(BOX_LEFT + 80, Math.min(BOX_RIGHT - 80, mx)), Math.max(BOX_TOP + 30, my), '#ef4444');
+            addParticles(mx, my, 20, '#60a5fa');
 
-          if (healthRef.current <= 0) {
-            isGameOverRef.current = true;
-            setGameState('lost');
-            onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
-            return;
+            if (healthRef.current <= 0) {
+              isGameOverRef.current = true;
+              setGameState('lost');
+              onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+              return;
+            }
           }
         }
 
@@ -1515,6 +1583,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
           if (gameTimeRef.current >= level.durationSeconds && !isGameOverRef.current) {
             isGameOverRef.current = true;
+
+            // Noclip fail — don't fire onVictory, don't save 100%
+            if (noclipHitsRef.current > 0 || noclipRef.current) {
+              setNoclipHitCount(noclipHitsRef.current);
+              setNoclipFailed(true);
+              setGameState('won');
+              sound.playHitSound();
+              progressRef.current = 0;
+              setProgress(0);
+              return;
+            }
+
+            // Real victory
             progressRef.current = 100;
             setProgress(100);
             setGameState('won');
@@ -1628,7 +1709,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           });
         }
 
-        // === ANTHILLS: sync pulse + destroyed cooldown ===
+        // === ANTHILLS ===
         const effectiveDiffKey = level.isEndless ? currentDiffRef.current : level.difficulty;
         const secGrowthRate =
           effectiveDiffKey === 'Easy' ? 0.22 :
@@ -1648,17 +1729,60 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         });
 
-        // === SIMULTANEOUS VOLLEYS FROM ALL ANTHILLS ===
+        // === PHASE-BASED VOLLEYS ===
         const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey);
         const HARD_ANT_CAP = 300;
 
-        if (freezeTimerRef.current <= 0 && antsRef.current.length < HARD_ANT_CAP) {
-          const volleyIndex = Math.floor(gameTimeRef.current / spawnStyle.volleyInterval);
+        const breakDuration = getBreakDuration(effectiveDiffKey);
+        const phase: PhaseNumber = level.isEndless
+          ? 1
+          : getPhase(gameTimeRef.current, level.durationSeconds, breakDuration);
+
+        const isSpawning = level.isEndless || phase !== 3;
+
+        if (phase !== lastPhaseRef.current) {
+          lastPhaseRef.current = phase;
+          lastVolleyIndexRef.current = -1;
+
+          if (phase === 3) {
+            addFloatingText(
+              `breather ${breakDuration}s`,
+              width / 2,
+              height / 2 - 40,
+              '#38bdf8'
+            );
+          } else if (phase === 2) {
+            addFloatingText(
+              'final phase!',
+              width / 2,
+              height / 2 - 40,
+              '#f43f5e'
+            );
+          }
+        }
+
+        const baseInterval = getPhaseInterval(effectiveDiffKey);
+        const phaseInterval = phase === 2 ? baseInterval * 0.85 : baseInterval;
+        const effectiveInterval = level.isEndless
+          ? spawnStyle.volleyInterval
+          : phaseInterval;
+
+        const volleyMultiplier = phase === 2 ? 1.3 : 1.0;
+        const actualVolleySize = Math.max(
+          1,
+          Math.round(spawnStyle.volleySize * volleyMultiplier)
+        );
+
+        if (
+          freezeTimerRef.current <= 0 &&
+          antsRef.current.length < HARD_ANT_CAP &&
+          isSpawning
+        ) {
+          const volleyIndex = Math.floor(gameTimeRef.current / effectiveInterval);
 
           if (volleyIndex > lastVolleyIndexRef.current) {
             lastVolleyIndexRef.current = volleyIndex;
 
-            // Telegraph volley with shockwave at each anthill
             anthillsRef.current.forEach((hill) => {
               if (hill.destroyedTime && hill.destroyedTime > 0) return;
               shockwavesRef.current.push({
@@ -1666,15 +1790,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 y: hill.y,
                 radius: 5,
                 maxRadius: hill.radius + 30,
-                color: '#fbbf24',
+                color: phase === 2 ? '#f43f5e' : '#fbbf24',
               });
             });
 
-            // Fire volley from EVERY alive anthill
             anthillsRef.current.forEach((hill) => {
               if (hill.destroyedTime && hill.destroyedTime > 0) return;
 
-              for (let i = 0; i < spawnStyle.volleySize; i++) {
+              for (let i = 0; i < actualVolleySize; i++) {
                 const roll = Math.random();
                 let antType: 'worker' | 'fire' | 'acid' = 'worker';
                 if (roll < spawnStyle.fireChance) antType = 'fire';
@@ -1805,19 +1928,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             }
 
             if (dist < ant.size + 10 && borderHitCooldownRef.current <= 0) {
-              healthRef.current -= 1;
-              setHealth(healthRef.current);
-              sound.playHitSound();
-              shakeRef.current = 18;
               borderHitCooldownRef.current = 35;
 
-              addFloatingText('-1 shield', safeTargetX, safeTargetY - 20, '#ef4444');
-              addParticles(ant.x, ant.y, 14, '#ef4444');
+              if (noclipRef.current) {
+                noclipHitsRef.current += 1;
+              } else {
+                healthRef.current -= 1;
+                setHealth(healthRef.current);
+                sound.playHitSound();
+                shakeRef.current = 18;
+                addFloatingText('-1 shield', safeTargetX, safeTargetY - 20, '#ef4444');
+                addParticles(ant.x, ant.y, 14, '#ef4444');
 
-              if (healthRef.current <= 0) {
-                isGameOverRef.current = true;
-                setGameState('lost');
-                onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+                if (healthRef.current <= 0) {
+                  isGameOverRef.current = true;
+                  setGameState('lost');
+                  onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+                }
               }
             }
           });
@@ -1849,17 +1976,22 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
             const dist = Math.hypot(safeTargetX - obs.x, safeTargetY - obs.y);
             if (dist < r + 10 && borderHitCooldownRef.current <= 0) {
-              healthRef.current -= 1;
-              setHealth(healthRef.current);
-              sound.playHitSound();
-              shakeRef.current = 20;
               borderHitCooldownRef.current = 40;
-              addFloatingText('-1 shield', safeTargetX, safeTargetY - 20, '#ef4444');
 
-              if (healthRef.current <= 0) {
-                isGameOverRef.current = true;
-                setGameState('lost');
-                onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+              if (noclipRef.current) {
+                noclipHitsRef.current += 1;
+              } else {
+                healthRef.current -= 1;
+                setHealth(healthRef.current);
+                sound.playHitSound();
+                shakeRef.current = 20;
+                addFloatingText('-1 shield', safeTargetX, safeTargetY - 20, '#ef4444');
+
+                if (healthRef.current <= 0) {
+                  isGameOverRef.current = true;
+                  setGameState('lost');
+                  onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+                }
               }
             }
           } else if (obs.type === 'laser') {
@@ -1913,6 +2045,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             addFloatingText(`${portal.label}!`, portal.x, portal.y - 20, portal.color);
 
             antsRef.current = antsRef.current.filter((ant) => {
+              const antAny = ant as any;
+              if (antAny.isBoss) return true;
               const adist = Math.hypot(ant.x - portal.x, ant.y - portal.y);
               if (adist <= 150) {
                 addParticles(ant.x, ant.y, 6, portal.color);
@@ -2376,6 +2510,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             <span>{getSpeedName(currentSpeed)}</span>
           </div>
 
+          {noclip && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border border-lime-500/60 bg-lime-500/10 font-['Patrick_Hand'] text-xs text-lime-300 lowercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse" />
+              <span>noclip</span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2.5 sm:gap-4">
             <div className="flex items-center gap-1">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -2489,6 +2630,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               <button
                 onClick={() => {
                   sound.playClick();
+                  setNoclip((v) => !v);
+                }}
+                className={`w-full py-2 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] font-['Patrick_Hand'] text-sm cursor-pointer border transition-all ${
+                  noclip
+                    ? 'bg-lime-500/20 border-lime-400 text-lime-300'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border-neutral-700'
+                }`}
+              >
+                noclip: {noclip ? 'on' : 'off'}
+              </button>
+
+              <button
+                onClick={() => {
+                  sound.playClick();
                   setIsPaused(false);
                   initLevel();
                 }}
@@ -2502,7 +2657,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   sound.playClick();
                   sound.stopBgm();
                   if (!isGameOverRef.current) {
-                    onGameOver(level.id, scoreRef.current, sugarRef.current, progressRef.current, Boolean(level.isEndless));
+                    // Clamp progress to 99 if noclip was used — parent also clamps, this is extra safety
+                    const reportedProgress =
+                      noclipRef.current || noclipHitsRef.current > 0
+                        ? Math.min(progressRef.current, 99)
+                        : progressRef.current;
+                    onGameOver(level.id, scoreRef.current, sugarRef.current, reportedProgress, Boolean(level.isEndless));
                   }
                   onExit();
                 }}
@@ -2569,7 +2729,87 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         </div>
       )}
 
-      {gameState === 'won' && (
+      {noclipFailed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
+          <div className="relative w-full max-w-sm bg-neutral-900 border border-lime-500/40 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
+            <h2 className="text-4xl sm:text-5xl font-bold font-['Caveat'] text-lime-300 lowercase mb-3">
+              u havent completed the lvl properly!
+            </h2>
+
+            <div className="text-base font-['Patrick_Hand'] text-neutral-300 lowercase mb-5">
+              u actually lost{' '}
+              <span className="text-rose-400 font-bold">
+                {noclipHitCount} {noclipHitCount === 1 ? 'shield' : 'shields'}
+              </span>
+              .
+            </div>
+
+            <div className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase mb-6">
+              noclip run • no rewards • no progress
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 mb-6">
+              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
+                <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
+                  {score.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
+                <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
+                  <Cookie className="w-4 h-4 text-amber-400" />
+                  +0 (noclip)
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setNoclipFailed(false);
+                  setNoclip(false);
+                  initLevel();
+                }}
+                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-lg font-bold transition-all cursor-pointer shadow-md hover:scale-105 flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>try again legit</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setNoclipFailed(false);
+                  setNoclip(true);
+                  initLevel();
+                }}
+                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-lime-500/15 hover:bg-lime-500/25 text-lime-300 font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-lime-500/40"
+              >
+                restart with noclip
+              </button>
+
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setNoclipFailed(false);
+                  setNoclip(false);
+                  sound.stopBgm();
+                  // Report 0% progress since level was not legit-completed
+                  onGameOver(level.id, scoreRef.current, sugarRef.current, 0, Boolean(level.isEndless));
+                  onExit();
+                }}
+                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
+              >
+                chambers
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {gameState === 'won' && !noclipFailed && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
           <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
             <h2 className="text-5xl font-bold font-['Caveat'] text-neutral-100 lowercase mb-2">
