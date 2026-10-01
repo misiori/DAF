@@ -2,6 +2,8 @@
   "name": "dangerous-ant-farm",
   "private": true,
   "version": "1.0.0",
+  "description": "rhythm-based game by misiori",
+  "author": "misiori",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -48,6 +50,7 @@
   "build": {
     "appId": "app.vercel.dangerousantfarm",
     "productName": "Dangerous Ant Farm",
+    "publish": null,
     "directories": {
       "output": "release"
     },
