@@ -528,30 +528,24 @@ function drawMainScreenStyleAnt(
   const isBoss = antAny.isBoss === true;
   const isTitan = ant.isBigAnt;
 
-  // Boss is 5x the size of a normal ant
   const baseSize = Math.min(ant.size, 5.8);
   const s = isBoss ? baseSize * 5 : baseSize;
 
-  // ALL ants are white — bosses too
   const antColor = '#ffffff';
 
-  // 1. Abdomen
   ctx.fillStyle = antColor;
   ctx.beginPath();
   ctx.ellipse(-s * 0.45, 0, s * 0.52, s * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. Thorax
   ctx.beginPath();
   ctx.ellipse(0, 0, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 3. Head
   ctx.beginPath();
   ctx.arc(s * 0.45, 0, s * 0.24, 0, Math.PI * 2);
   ctx.fill();
 
-  // Boss: subtle outline so it's visible against dark bg
   if (isBoss) {
     ctx.strokeStyle = 'rgba(200, 200, 210, 0.75)';
     ctx.lineWidth = 1.6;
@@ -560,7 +554,6 @@ function drawMainScreenStyleAnt(
     ctx.stroke();
   }
 
-  // 4. Legs
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
   ctx.lineWidth = isBoss ? 2.2 : 0.9;
   for (let l = -1; l <= 1; l++) {
@@ -573,7 +566,6 @@ function drawMainScreenStyleAnt(
     ctx.stroke();
   }
 
-  // 5. Antennae
   ctx.beginPath();
   ctx.moveTo(s * 0.52, -0.6);
   ctx.lineTo(s * 0.8, -s * 0.3);
@@ -581,7 +573,6 @@ function drawMainScreenStyleAnt(
   ctx.lineTo(s * 0.8, s * 0.3);
   ctx.stroke();
 
-  // Honey freeze timer
   if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
     ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
     ctx.beginPath();
@@ -653,6 +644,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [noclip, setNoclip] = useState(false);
   const noclipRef = useRef(false);
   const noclipHitsRef = useRef(0);
+  // noclipEverUsedRef: becomes true the MOMENT noclip is first enabled in this run.
+  // It is NEVER reset until initLevel — so toggling off before finishing still fails the run.
+  const noclipEverUsedRef = useRef(false);
   const [noclipFailed, setNoclipFailed] = useState(false);
   const [noclipHitCount, setNoclipHitCount] = useState(0);
 
@@ -762,6 +756,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   useEffect(() => {
     noclipRef.current = noclip;
+    if (noclip) {
+      // Lock the "ever used" flag permanently for this run
+      noclipEverUsedRef.current = true;
+    }
   }, [noclip]);
 
   useEffect(() => {
@@ -888,6 +886,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     lastVolleyIndexRef.current = -1;
     lastPhaseRef.current = 1;
     noclipHitsRef.current = 0;
+    noclipEverUsedRef.current = false;
     setNoclipFailed(false);
     setNoclipHitCount(0);
 
@@ -1087,7 +1086,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     anthillsRef.current = hills;
 
-    // === 2 FIXED BOSS ANTS ===
     const initialAnts: Ant[] = [];
     const bossBaseSize = 5.8;
     const bossHealth = 6;
@@ -1584,8 +1582,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (gameTimeRef.current >= level.durationSeconds && !isGameOverRef.current) {
             isGameOverRef.current = true;
 
-            // Noclip fail — don't fire onVictory, don't save 100%
-            if (noclipHitsRef.current > 0 || noclipRef.current) {
+            // Noclip check: if noclip was EVER turned on this run, or if any hits happened — fail the run
+            if (noclipEverUsedRef.current || noclipHitsRef.current > 0 || noclipRef.current) {
               setNoclipHitCount(noclipHitsRef.current);
               setNoclipFailed(true);
               setGameState('won');
@@ -1595,7 +1593,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               return;
             }
 
-            // Real victory
+            // Real, legit victory
             progressRef.current = 100;
             setProgress(100);
             setGameState('won');
@@ -1709,7 +1707,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           });
         }
 
-        // === ANTHILLS ===
         const effectiveDiffKey = level.isEndless ? currentDiffRef.current : level.difficulty;
         const secGrowthRate =
           effectiveDiffKey === 'Easy' ? 0.22 :
@@ -1729,7 +1726,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         });
 
-        // === PHASE-BASED VOLLEYS ===
         const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey);
         const HARD_ANT_CAP = 300;
 
@@ -2657,9 +2653,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   sound.playClick();
                   sound.stopBgm();
                   if (!isGameOverRef.current) {
-                    // Clamp progress to 99 if noclip was used — parent also clamps, this is extra safety
+                    // If noclip was EVER used this run, clamp to 99% so parent won't mark as beaten
                     const reportedProgress =
-                      noclipRef.current || noclipHitsRef.current > 0
+                      noclipEverUsedRef.current || noclipHitsRef.current > 0
                         ? Math.min(progressRef.current, 99)
                         : progressRef.current;
                     onGameOver(level.id, scoreRef.current, sugarRef.current, reportedProgress, Boolean(level.isEndless));
@@ -2796,7 +2792,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   setNoclipFailed(false);
                   setNoclip(false);
                   sound.stopBgm();
-                  // Report 0% progress since level was not legit-completed
+                  // Report 0% to parent — level was not legit-completed
                   onGameOver(level.id, scoreRef.current, sugarRef.current, 0, Boolean(level.isEndless));
                   onExit();
                 }}
