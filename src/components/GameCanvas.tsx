@@ -25,6 +25,78 @@ const HAND_BOLD_SM = "bold 13px 'Patrick_Hand', cursive";
 const HAND_BOLD_MD = "bold 15px 'Patrick_Hand', cursive";
 const HAND_REG_MD = "14px 'Patrick_Hand', cursive";
 
+// === PER-LEVEL SPAWN BEHAVIOR TABLE ===
+// Controls how each level feels unique: how ants move, what types spawn, how often
+interface LevelSpawnStyle {
+  formation: 'direct' | 'orbit' | 'zigzag' | 'spiral' | 'twin';
+  volleySize: number;
+  volleyInterval: number;
+  fireChance: number;
+  acidChance: number;
+  antSpeedBoost: number;
+  homing: number;
+}
+
+const LEVEL_SPAWN_STYLES: Record<number, LevelSpawnStyle> = {
+  // EASY — slower, predictable, workers mostly
+  1:  { formation: 'direct', volleySize: 1, volleyInterval: 3.2, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.85, homing: 0.7 },
+  2:  { formation: 'orbit',  volleySize: 1, volleyInterval: 2.8, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.90, homing: 0.8 },
+  3:  { formation: 'zigzag', volleySize: 1, volleyInterval: 2.6, fireChance: 0.05, acidChance: 0.00, antSpeedBoost: 0.95, homing: 0.85 },
+  4:  { formation: 'direct', volleySize: 2, volleyInterval: 2.4, fireChance: 0.00, acidChance: 0.05, antSpeedBoost: 1.00, homing: 0.9 },
+
+  // NORMAL — mixed, faster, some acid
+  5:  { formation: 'orbit',  volleySize: 2, volleyInterval: 2.1, fireChance: 0.08, acidChance: 0.05, antSpeedBoost: 1.05, homing: 0.9 },
+  6:  { formation: 'twin',   volleySize: 2, volleyInterval: 2.0, fireChance: 0.10, acidChance: 0.08, antSpeedBoost: 1.05, homing: 0.95 },
+  7:  { formation: 'zigzag', volleySize: 2, volleyInterval: 1.9, fireChance: 0.12, acidChance: 0.10, antSpeedBoost: 1.10, homing: 0.95 },
+  8:  { formation: 'spiral', volleySize: 3, volleyInterval: 1.9, fireChance: 0.10, acidChance: 0.12, antSpeedBoost: 1.10, homing: 0.95 },
+
+  // HARD — dense volleys, more specials
+  9:  { formation: 'direct', volleySize: 3, volleyInterval: 1.7, fireChance: 0.18, acidChance: 0.15, antSpeedBoost: 1.15, homing: 1.0 },
+  10: { formation: 'spiral', volleySize: 3, volleyInterval: 1.6, fireChance: 0.20, acidChance: 0.18, antSpeedBoost: 1.20, homing: 1.0 },
+  11: { formation: 'orbit',  volleySize: 3, volleyInterval: 1.6, fireChance: 0.18, acidChance: 0.22, antSpeedBoost: 1.20, homing: 1.0 },
+  12: { formation: 'twin',   volleySize: 4, volleyInterval: 1.5, fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.25, homing: 1.0 },
+
+  // HARDER — very dense, aggressive
+  13: { formation: 'spiral', volleySize: 4, volleyInterval: 1.4, fireChance: 0.28, acidChance: 0.25, antSpeedBoost: 1.30, homing: 1.0 },
+  14: { formation: 'zigzag', volleySize: 4, volleyInterval: 1.4, fireChance: 0.30, acidChance: 0.30, antSpeedBoost: 1.30, homing: 1.0 },
+  15: { formation: 'direct', volleySize: 5, volleyInterval: 1.3, fireChance: 0.30, acidChance: 0.28, antSpeedBoost: 1.35, homing: 1.0 },
+  16: { formation: 'orbit',  volleySize: 5, volleyInterval: 1.3, fireChance: 0.28, acidChance: 0.35, antSpeedBoost: 1.35, homing: 1.0 },
+
+  // INSANE — bullet-hell
+  17: { formation: 'spiral', volleySize: 5, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
+  18: { formation: 'twin',   volleySize: 6, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
+  19: { formation: 'zigzag', volleySize: 6, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.35, antSpeedBoost: 1.50, homing: 1.0 },
+  20: { formation: 'direct', volleySize: 7, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.40, antSpeedBoost: 1.55, homing: 1.0 },
+
+  // CRAZY — chaotic
+  21: { formation: 'spiral', volleySize: 7, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.40, antSpeedBoost: 1.60, homing: 1.0 },
+  22: { formation: 'twin',   volleySize: 8, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.45, antSpeedBoost: 1.65, homing: 1.0 },
+  23: { formation: 'spiral', volleySize: 9, volleyInterval: 0.8, fireChance: 0.50, acidChance: 0.50, antSpeedBoost: 1.70, homing: 1.0 },
+};
+
+const DEFAULT_SPAWN_STYLE: LevelSpawnStyle = {
+  formation: 'direct', volleySize: 3, volleyInterval: 1.6,
+  fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.20, homing: 1.0,
+};
+
+function getSpawnStyle(levelId: number, difficulty: string): LevelSpawnStyle {
+  if (LEVEL_SPAWN_STYLES[levelId]) return LEVEL_SPAWN_STYLES[levelId];
+  const mult =
+    difficulty === 'Easy' ? 0.7 :
+    difficulty === 'Normal' ? 0.9 :
+    difficulty === 'Hard' ? 1.1 :
+    difficulty === 'Harder' ? 1.25 :
+    difficulty === 'Insane' ? 1.45 : 1.6;
+  return {
+    ...DEFAULT_SPAWN_STYLE,
+    volleySize: Math.round(DEFAULT_SPAWN_STYLE.volleySize * mult),
+    volleyInterval: DEFAULT_SPAWN_STYLE.volleyInterval / mult,
+    fireChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.fireChance * mult),
+    acidChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.acidChance * mult),
+    antSpeedBoost: DEFAULT_SPAWN_STYLE.antSpeedBoost * mult,
+  };
+}
+
 interface GameCanvasProps {
   level: LevelConfig;
   profile: PlayerProfile;
@@ -77,7 +149,6 @@ function drawHandDrawnAnthill(
   ctx.translate(x, y);
 
   if (isDestroyed) {
-    // Flattened, smoked out mound sketch
     ctx.strokeStyle = '#52525b';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 4]);
@@ -99,10 +170,8 @@ function drawHandDrawnAnthill(
     return;
   }
 
-  // Anthills are pulsing like something is actively happening in them!
   const pulseWobble = Math.sin(hill.pulse * 2.5) * 1.5;
 
-  // 1. Sketched outer mound base (uneven hand-drawn ink loop with biological pulse)
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.8;
   ctx.beginPath();
@@ -121,7 +190,6 @@ function drawHandDrawnAnthill(
   ctx.fill();
   ctx.stroke();
 
-  // 2. Concentric sketched terrace ridges (concentric mound contours undulating with life)
   for (let ring = 1; ring <= 3; ring++) {
     const ringR = r * (0.35 + (ring / 3) * 0.48);
     ctx.beginPath();
@@ -139,7 +207,6 @@ function drawHandDrawnAnthill(
     ctx.stroke();
   }
 
-  // 2.5 Subterranean ripple wave (pulsing outward from crater)
   const craterR = Math.max(7, r * 0.28);
   const rippleDistance = (r - craterR);
   const rippleFrac = (hill.pulse * 0.4) % 1;
@@ -150,7 +217,6 @@ function drawHandDrawnAnthill(
   ctx.arc(0, 0, rippleR, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 3. Stippled sand/dirt granules scattered on the mound slopes
   ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
   for (let s = 0; s < 12; s++) {
     const sAngle = (s * 0.52) + hill.id;
@@ -160,7 +226,6 @@ function drawHandDrawnAnthill(
     ctx.fillRect(sx - 0.75, sy - 0.75, 1.5, 1.5);
   }
 
-  // 4. Central deep crater / hole (pitch black with hand-drawn white ink rim)
   ctx.fillStyle = '#000000';
   ctx.beginPath();
   ctx.arc(0, 0, craterR, 0, Math.PI * 2);
@@ -169,7 +234,6 @@ function drawHandDrawnAnthill(
   ctx.lineWidth = 2.0;
   ctx.stroke();
 
-  // Scurrying ant activity inside the crater hole (something is happening inside!)
   for (let i = 0; i < 4; i++) {
     const antAng = hill.pulse * 2.2 + (i * Math.PI) / 2;
     const antD = craterR * 0.45 + Math.sin(hill.pulse * 3 + i) * (craterR * 0.25);
@@ -180,7 +244,6 @@ function drawHandDrawnAnthill(
     ctx.arc(cx, cy, 1.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Tiny twitching ant feeler
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
@@ -189,7 +252,6 @@ function drawHandDrawnAnthill(
     ctx.stroke();
   }
 
-  // 5. If damaged (hp < maxHp), hand-drawn sketched cracks radiating outward
   if (hill.hp && hill.maxHp && hill.hp < hill.maxHp) {
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 1.6;
@@ -205,7 +267,6 @@ function drawHandDrawnAnthill(
     }
   }
 
-  // 6. Overhead handwritten HP indicator (e.g. "click 3") in Patrick_Hand font!
   ctx.fillStyle = '#ffffff';
   ctx.font = HAND_BOLD_MD;
   ctx.textAlign = 'center';
@@ -214,14 +275,11 @@ function drawHandDrawnAnthill(
   ctx.restore();
 }
 
-// Power-up pod renderers: Distinct hand-drawn sketches (clean, without pulsing aura circles or text labels)
-// 1. Nuke Bomb: Classic round cast-iron bomb with burning sparkling fuse
 function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   const pr = pod.radius;
   ctx.save();
   ctx.translate(pod.x, pod.y);
 
-  // Round bomb body (deep charcoal with metallic shine)
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
   ctx.arc(0, 2, pr, 0, Math.PI * 2);
@@ -230,14 +288,12 @@ function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineWidth = 1.8;
   ctx.stroke();
 
-  // Cylindrical neck
   ctx.fillStyle = '#292524';
   ctx.fillRect(-pr * 0.28, -pr - 4, pr * 0.56, 7);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(-pr * 0.28, -pr - 4, pr * 0.56, 7);
 
-  // Curved fuse rope
   ctx.strokeStyle = '#fef08a';
   ctx.lineWidth = 1.8;
   ctx.beginPath();
@@ -245,7 +301,6 @@ function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.quadraticCurveTo(pr * 0.35, -pr - 14, pr * 0.55, -pr - 11);
   ctx.stroke();
 
-  // Sizzling spark at fuse tip
   const sparkX = pr * 0.55;
   const sparkY = -pr - 11;
   ctx.fillStyle = '#ef4444';
@@ -266,7 +321,6 @@ function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
     ctx.stroke();
   }
 
-  // Sketched hazard symbol / nuke trefoil on bomb body
   ctx.fillStyle = '#f87171';
   ctx.beginPath();
   ctx.arc(0, 3, 3, 0, Math.PI * 2);
@@ -280,7 +334,6 @@ function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
     ctx.fill();
   }
 
-  // Specular shine highlight
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -290,13 +343,11 @@ function drawNukeBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.restore();
 }
 
-// 2. EMP Bomb: Round electric plasma bomb with lightning arcs
 function drawEmpBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   const pr = pod.radius;
   ctx.save();
   ctx.translate(pod.x, pod.y);
 
-  // Sphere casing
   ctx.fillStyle = '#082f49';
   ctx.beginPath();
   ctx.arc(0, 2, pr, 0, Math.PI * 2);
@@ -305,14 +356,12 @@ function drawEmpBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineWidth = 1.8;
   ctx.stroke();
 
-  // Metal neck
   ctx.fillStyle = '#0c4a6e';
   ctx.fillRect(-pr * 0.25, -pr - 4, pr * 0.5, 7);
   ctx.strokeStyle = '#7dd3fc';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(-pr * 0.25, -pr - 4, pr * 0.5, 7);
 
-  // Electrical spark fuse
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 1.8;
   ctx.beginPath();
@@ -322,7 +371,6 @@ function drawEmpBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineTo(pr * 0.5, -pr - 14);
   ctx.stroke();
 
-  // Lightning bolt sketch on body
   ctx.fillStyle = '#e0f2fe';
   ctx.beginPath();
   ctx.moveTo(-2, -pr * 0.4);
@@ -337,13 +385,11 @@ function drawEmpBombPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.restore();
 }
 
-// 3. Honey Jar: Hand-drawn glass honey jar with dripping honey (no text, no pulsing halo)
 function drawHoneyJarPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   const pr = pod.radius;
   ctx.save();
   ctx.translate(pod.x, pod.y);
 
-  // Jar body (rounded pot shape)
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
   ctx.roundRect(-pr * 0.75, -pr * 0.5, pr * 1.5, pr * 1.45, 9);
@@ -352,20 +398,17 @@ function drawHoneyJarPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineWidth = 1.8;
   ctx.stroke();
 
-  // Honey liquid visible inside jar
   ctx.fillStyle = '#f59e0b';
   ctx.beginPath();
   ctx.roundRect(-pr * 0.65, -pr * 0.25, pr * 1.3, pr * 1.1, 7);
   ctx.fill();
 
-  // Jar neck and rim
   ctx.fillStyle = '#92400e';
   ctx.fillRect(-pr * 0.52, -pr * 0.85, pr * 1.04, pr * 0.38);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(-pr * 0.52, -pr * 0.85, pr * 1.04, pr * 0.38);
 
-  // Cork stopper / wooden lid on top
   ctx.fillStyle = '#d97706';
   ctx.beginPath();
   ctx.ellipse(0, -pr * 0.88, pr * 0.42, pr * 0.2, 0, 0, Math.PI * 2);
@@ -374,7 +417,6 @@ function drawHoneyJarPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Thick honey drip oozing over the jar edge
   ctx.fillStyle = '#fbbf24';
   ctx.beginPath();
   ctx.moveTo(-pr * 0.2, -pr * 0.5);
@@ -386,8 +428,84 @@ function drawHoneyJarPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
   ctx.restore();
 }
 
-// Minimalistic regular white ant renderer matching main screen background
-// Small, cute, compact white bugs with NO big spider paws!
+// Queen Cocoon renderer (fixes invisible pod on levels 13 & 23)
+function drawQueenCocoonPod(ctx: CanvasRenderingContext2D, pod: MechanicPod) {
+  const pr = pod.radius;
+  const hp = pod.hp ?? 7;
+  const maxHp = pod.maxHp ?? 7;
+  const hpFrac = Math.max(0, hp / maxHp);
+
+  ctx.save();
+  ctx.translate(pod.x, pod.y);
+
+  // Pulsing outer glow
+  const glowPulse = 0.85 + 0.15 * Math.sin(pod.pulse * 2);
+  const glowGrad = ctx.createRadialGradient(0, 0, pr * 0.5, 0, 0, pr * 1.7);
+  glowGrad.addColorStop(0, `rgba(244, 63, 94, ${0.35 * glowPulse})`);
+  glowGrad.addColorStop(1, 'rgba(244, 63, 94, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, pr * 1.7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Silk outer cocoon (oval)
+  ctx.fillStyle = '#3f1d2e';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, pr * 0.95, pr * 1.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fb7185';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Silk strand texture
+  ctx.strokeStyle = 'rgba(254, 205, 211, 0.5)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, pr * (0.35 + i * 0.12), pr * (0.5 + i * 0.15), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Crack lines based on damage
+  const crackCount = Math.max(0, maxHp - hp);
+  ctx.strokeStyle = '#fecdd3';
+  ctx.lineWidth = 1.8;
+  for (let c = 0; c < crackCount; c++) {
+    const cAng = (c * Math.PI * 2) / Math.max(1, crackCount) + pod.id * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(cAng) * pr * 0.2, Math.sin(cAng) * pr * 0.3);
+    ctx.lineTo(Math.cos(cAng + 0.3) * pr * 0.5, Math.sin(cAng + 0.3) * pr * 0.7);
+    ctx.lineTo(Math.cos(cAng - 0.1) * pr * 0.85, Math.sin(cAng - 0.1) * pr * 1.1);
+    ctx.stroke();
+  }
+
+  // Central pulsing embryo eye
+  ctx.fillStyle = '#f43f5e';
+  ctx.beginPath();
+  ctx.arc(0, 0, pr * 0.3 * glowPulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath();
+  ctx.arc(0, 0, pr * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // HP indicator in handwritten font
+  ctx.fillStyle = '#ffffff';
+  ctx.font = HAND_BOLD_MD;
+  ctx.textAlign = 'center';
+  ctx.fillText(`crack ${hp}`, 0, -pr * 1.5);
+
+  // HP bar
+  const barW = pr * 1.8;
+  const barH = 3;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(-barW / 2, -pr * 1.9, barW, barH);
+  ctx.fillStyle = '#f43f5e';
+  ctx.fillRect(-barW / 2, -pr * 1.9, barW * hpFrac, barH);
+
+  ctx.restore();
+}
+
 function drawMainScreenStyleAnt(
   ctx: CanvasRenderingContext2D,
   ant: Ant
@@ -400,23 +518,19 @@ function drawMainScreenStyleAnt(
   const isTitan = ant.isBigAnt;
   const antColor = isTitan ? '#ef4444' : '#ffffff';
 
-  // 1. Abdomen (rear oval)
   ctx.fillStyle = antColor;
   ctx.beginPath();
   ctx.ellipse(-s * 0.45, 0, s * 0.52, s * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. Thorax (middle oval)
   ctx.beginPath();
   ctx.ellipse(0, 0, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 3. Head (front circle)
   ctx.beginPath();
   ctx.arc(s * 0.45, 0, s * 0.24, 0, Math.PI * 2);
   ctx.fill();
 
-  // 4. Tiny short delicate feet (close to body, identical to main screen background)
   ctx.strokeStyle = isTitan ? 'rgba(239, 68, 68, 0.85)' : 'rgba(255, 255, 255, 0.85)';
   ctx.lineWidth = 0.9;
   for (let l = -1; l <= 1; l++) {
@@ -429,7 +543,6 @@ function drawMainScreenStyleAnt(
     ctx.stroke();
   }
 
-  // 5. Tiny short antennae
   ctx.beginPath();
   ctx.moveTo(s * 0.52, -0.6);
   ctx.lineTo(s * 0.8, -s * 0.3);
@@ -437,7 +550,6 @@ function drawMainScreenStyleAnt(
   ctx.lineTo(s * 0.8, s * 0.3);
   ctx.stroke();
 
-  // Honey freeze visual: golden amber crystalline shell with Patrick_Hand timer
   if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
     ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
     ctx.beginPath();
@@ -458,58 +570,6 @@ function drawMainScreenStyleAnt(
   ctx.restore();
 }
 
-// Subtle sketched chamber background art for level variety
-function drawLevelFloorArt(
-  ctx: CanvasRenderingContext2D,
-  levelId: number,
-  boxL: number,
-  boxT: number,
-  boxR: number,
-  boxB: number
-) {
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-  ctx.lineWidth = 1.0;
-
-  const w = boxR - boxL;
-  const h = boxB - boxT;
-
-  if (levelId % 4 === 1) {
-    // Subtle sketched pebble contours
-    for (let i = 0; i < 6; i++) {
-      const px = boxL + (w * (0.15 + (i * 0.14)));
-      const py = boxT + (h * (0.2 + ((i * 3) % 5) * 0.14));
-      ctx.beginPath();
-      ctx.ellipse(px, py, 16, 9, i * 0.4, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  } else if (levelId % 4 === 2) {
-    // Faint diagonal sketchbook cross-hatching corners
-    ctx.beginPath();
-    for (let d = 0; d < 60; d += 15) {
-      ctx.moveTo(boxL + d, boxT);
-      ctx.lineTo(boxL, boxT + d);
-      ctx.moveTo(boxR - d, boxB);
-      ctx.lineTo(boxR, boxB - d);
-    }
-    ctx.stroke();
-  } else if (levelId % 4 === 3) {
-    // Faint geological soil strata sketch lines
-    ctx.beginPath();
-    ctx.moveTo(boxL + w * 0.1, boxT + h * 0.35);
-    ctx.lineTo(boxL + w * 0.9, boxT + h * 0.35);
-    ctx.moveTo(boxL + w * 0.15, boxT + h * 0.65);
-    ctx.lineTo(boxL + w * 0.85, boxT + h * 0.65);
-    ctx.stroke();
-  } else {
-    // Faint concentric chamber zone ring
-    ctx.beginPath();
-    ctx.arc((boxL + boxR) / 2, (boxT + boxB) / 2, Math.min(w, h) * 0.24, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   level,
   profile,
@@ -518,32 +578,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onExit,
   onProgressDailyChallenge,
 }) => {
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-// === WAIT FOR HANDWRITTEN FONTS TO LOAD BEFORE RENDERING CANVAS TEXT ===
-const [fontsReady, setFontsReady] = useState(false);
+  // === WAIT FOR HANDWRITTEN FONTS TO LOAD BEFORE RENDERING CANVAS TEXT ===
+  const [fontsReady, setFontsReady] = useState(false);
 
-useEffect(() => {
-  let cancelled = false;
-  const loadFonts = async () => {
-    try {
-      await Promise.all([
-        document.fonts.load("bold 15px 'Patrick_Hand'"),
-        document.fonts.load("bold 13px 'Patrick_Hand'"),
-        document.fonts.load("14px 'Patrick_Hand'"),
-        document.fonts.load("40px 'Caveat'"),
-        document.fonts.load("700 40px 'Caveat'"),
-      ]);
-      await document.fonts.ready;
-      if (!cancelled) setFontsReady(true);
-    } catch {
-      if (!cancelled) setFontsReady(true);
-    }
-  };
-  loadFonts();
-  return () => { cancelled = true; };
-}, []);
+  useEffect(() => {
+    let cancelled = false;
+    const loadFonts = async () => {
+      try {
+        await Promise.all([
+          document.fonts.load("bold 15px 'Patrick_Hand'"),
+          document.fonts.load("bold 13px 'Patrick_Hand'"),
+          document.fonts.load("14px 'Patrick_Hand'"),
+          document.fonts.load("40px 'Caveat'"),
+          document.fonts.load("700 40px 'Caveat'"),
+        ]);
+        await document.fonts.ready;
+        if (!cancelled) setFontsReady(true);
+      } catch {
+        if (!cancelled) setFontsReady(true);
+      }
+    };
+    loadFonts();
+    return () => { cancelled = true; };
+  }, []);
 
   // Countdown & Game state
   const [countdown, setCountdown] = useState<number | null>(3);
@@ -555,7 +614,6 @@ useEffect(() => {
   const [currentSpeed, setCurrentSpeed] = useState<SpeedMultiplier>(1.0);
   const [progress, setProgress] = useState(0);
 
-  // Free mode dynamic state
   const [freeModeDifficulty, setFreeModeDifficulty] = useState<string>(level.difficulty);
   const [freeModeSecondsLeft, setFreeModeSecondsLeft] = useState<number>(15);
   const [isHeaderStopped, setIsHeaderStopped] = useState(false);
@@ -563,7 +621,6 @@ useEffect(() => {
 
   const activeSkin = getSkinById(profile.active_skin);
 
-  // References for 60fps game loop
   const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const countdownRef = useRef<number | null>(3);
   const speedMultiplierRef = useRef<SpeedMultiplier>(1.0);
@@ -576,12 +633,11 @@ useEffect(() => {
   const isGameOverRef = useRef(false);
   const freezeTimerRef = useRef(0);
   const clickRepulseCooldownRef = useRef(0);
+  const lastVolleyIndexRef = useRef(-1);
 
-  // Free mode ref
   const freeModeTimerRef = useRef(15);
   const currentDiffRef = useRef<string>(level.difficulty);
 
-  // Entities
   const antsRef = useRef<Ant[]>([]);
   const anthillsRef = useRef<Anthill[]>([]);
   const obstaclesRef = useRef<Obstacle[]>([]);
@@ -593,7 +649,6 @@ useEffect(() => {
   const shockwavesRef = useRef<Shockwave[]>([]);
   const mechanicPodsRef = useRef<MechanicPod[]>([]);
 
-  // Placed Honey Traps that visibly freeze ants for 5 seconds (Only activated as an in-game power up pod!)
   const honeyTrapsRef = useRef<
     {
       id: number;
@@ -606,7 +661,6 @@ useEffect(() => {
     }[]
   >([]);
 
-  // Honey pouring/sipping animation when honey jar powerup is clicked
   const honeySipAnimationsRef = useRef<
     {
       id: number;
@@ -616,10 +670,8 @@ useEffect(() => {
     }[]
   >([]);
 
-  // Persistent progress ref to prevent stale closures when sending game over
   const progressRef = useRef(0);
 
-  // Deploy honey trap at pod location (triggers honey sipping out animation!)
   const deployHoneyTrap = (targetX: number, targetY: number) => {
     if (isGameOverRef.current || countdownRef.current !== null) return;
     const height = window.innerHeight;
@@ -634,7 +686,6 @@ useEffect(() => {
 
     sound.playZap();
 
-    // Trigger animated honey sipping/pouring out of jar
     honeySipAnimationsRef.current.push({
       id: Math.random() * 100000,
       x: safeX,
@@ -646,8 +697,8 @@ useEffect(() => {
       id: Math.random() * 100000,
       x: safeX,
       y: safeY,
-      radius: 28, // Smaller honey trap!
-      duration: 5.0, // Active only 5s!
+      radius: 28,
+      duration: 5.0,
       maxDuration: 5.0,
       pulse: 0,
     });
@@ -664,18 +715,13 @@ useEffect(() => {
     addFloatingText('honey trap!', safeX, safeY - 20, '#fbbf24');
   };
 
-  // Border damage cooldown
   const borderHitCooldownRef = useRef(0);
-
-  // Screen shake
   const shakeRef = useRef(0);
 
-  // Sync pause ref
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  // Tab & Escape key to pause / resume listener (H cheat removed!)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -701,7 +747,6 @@ useEffect(() => {
     };
   }, [onExit]);
 
-  // Audio start / stop
   useEffect(() => {
     sound.startLevelBgm(level.id, level.bpm);
     return () => {
@@ -709,7 +754,6 @@ useEffect(() => {
     };
   }, [level]);
 
-  // 3, 2, 1 Countdown Timer
   useEffect(() => {
     if (countdown === null) return;
     if (countdown > 1) {
@@ -729,7 +773,6 @@ useEffect(() => {
     }
   }, [countdown]);
 
-  // Speed name helper (delete scales of speed, leave just names!)
   const getSpeedName = (speed: SpeedMultiplier) => {
     if (speed === 0.5) return 'slow';
     if (speed === 1.5) return 'fast';
@@ -737,7 +780,6 @@ useEffect(() => {
     return 'normal';
   };
 
-  // Helper: Add floating text
   const addFloatingText = (text: string, x: number, y: number, color: string) => {
     floatingTextsRef.current.push({
       id: Math.random() * 100000,
@@ -750,7 +792,6 @@ useEffect(() => {
     });
   };
 
-  // Helper: Add particle explosion
   const addParticles = (x: number, y: number, count: number, color: string) => {
     for (let i = 0; i < count; i++) {
       const speed = Math.random() * 5 + 2;
@@ -768,7 +809,6 @@ useEffect(() => {
     }
   };
 
-  // Initialize level objects inside containment box
   const initLevel = useCallback(() => {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -780,7 +820,6 @@ useEffect(() => {
     const boxCenterX = (boxLeft + boxRight) / 2;
     const boxCenterY = (boxTop + boxBottom) / 2;
 
-    // Center cursor on start
     mouseRef.current = { x: boxCenterX, y: boxCenterY };
     speedMultiplierRef.current = 1.0;
     setCurrentSpeed(1.0);
@@ -804,19 +843,17 @@ useEffect(() => {
     freezeTimerRef.current = 0;
     honeyTrapsRef.current = [];
     bonusShieldsAwardedRef.current = 0;
+    lastVolleyIndexRef.current = -1;
 
-    // Reset countdown to 3
     setCountdown(3);
     countdownRef.current = 3;
 
-    // Anthills with distinct configurations tailored to level chamber
     const boxW = boxRight - boxLeft;
     const boxH = boxBottom - boxTop;
     const hills: Anthill[] = [];
     const count = level.spawnerCount;
 
     if (level.id === 1 || level.id === 2) {
-      // Horizontal pincer
       const xOffsets = [-boxW * 0.28, boxW * 0.28];
       for (let i = 0; i < 2; i++) {
         hills.push({
@@ -835,7 +872,6 @@ useEffect(() => {
         });
       }
     } else if (level.id === 3 || level.id === 4) {
-      // Equilateral triangle
       const coords = [
         { x: boxCenterX, y: boxCenterY - boxH * 0.28 },
         { x: boxCenterX - boxW * 0.28, y: boxCenterY + boxH * 0.22 },
@@ -858,7 +894,6 @@ useEffect(() => {
         });
       }
     } else if (level.id === 5 || level.id === 6) {
-      // Curved upper arc
       const coords = [
         { x: boxCenterX - boxW * 0.3, y: boxCenterY - boxH * 0.22 },
         { x: boxCenterX, y: boxCenterY - boxH * 0.3 },
@@ -881,7 +916,6 @@ useEffect(() => {
         });
       }
     } else if (level.id === 7 || level.id === 8) {
-      // Diamond / Cross (North, South, East, West)
       const coords = [
         { x: boxCenterX, y: boxCenterY - boxH * 0.32 },
         { x: boxCenterX, y: boxCenterY + boxH * 0.32 },
@@ -905,7 +939,6 @@ useEffect(() => {
         });
       }
     } else if (level.id === 9 || level.id === 10) {
-      // 4 Corners
       const coords = [
         { x: boxCenterX - boxW * 0.32, y: boxCenterY - boxH * 0.28 },
         { x: boxCenterX + boxW * 0.32, y: boxCenterY - boxH * 0.28 },
@@ -929,7 +962,6 @@ useEffect(() => {
         });
       }
     } else if (level.id === 17 || level.id === 18) {
-      // Double Columns (Wing gauntlet)
       const coords = [
         { x: boxCenterX - boxW * 0.32, y: boxCenterY - boxH * 0.28 },
         { x: boxCenterX - boxW * 0.32, y: boxCenterY },
@@ -955,7 +987,6 @@ useEffect(() => {
         });
       }
     } else if (level.id >= 21 && !level.isEndless) {
-      // Queen Nest Boss Chamber: 1 Big Queen Anthill in center + surrounding satellite hills
       hills.push({
         id: 1,
         x: boxCenterX,
@@ -989,7 +1020,6 @@ useEffect(() => {
         });
       }
     } else {
-      // Ring / Polygon distribution for remaining chambers
       for (let i = 0; i < count; i++) {
         const angle = (i / count) * Math.PI * 2;
         const dist = Math.min(boxW * 0.34, boxH * 0.34);
@@ -1011,7 +1041,6 @@ useEffect(() => {
     }
     anthillsRef.current = hills;
 
-    // Reset entities (pre-spawn the 2 Big Titan Ants in Crazy difficulty)
     const initialAnts: Ant[] = [];
     if (level.difficulty === 'Crazy' || (level.isEndless && currentDiffRef.current === 'Crazy')) {
       initialAnts.push(
@@ -1057,7 +1086,6 @@ useEffect(() => {
     trailPointsRef.current = [];
     shockwavesRef.current = [];
 
-    // Spawn 1-2 interactive mechanic pods right away based on level mechanic
     const initialPods: MechanicPod[] = [];
     const mech = level.mechanicId || 'nuke_houses';
     if (mech === 'emp_pods' || mech === 'cryo_barrels') {
@@ -1115,7 +1143,6 @@ useEffect(() => {
     }
     mechanicPodsRef.current = initialPods;
 
-    // Obstacles
     const obs: Obstacle[] = [];
     const sawCount = Math.min(Math.floor((level.id <= 23 ? level.id : 12) / 5) + 1, 4);
     for (let s = 0; s < sawCount; s++) {
@@ -1154,13 +1181,11 @@ useEffect(() => {
     initLevel();
   }, [initLevel]);
 
-  // Click & Tap Interaction Handling (Nuking anthills, clicking pods, shockwave spamming)
   const handleUserClick = (clickX: number, clickY: number) => {
     if (countdownRef.current !== null || isPausedRef.current || isGameOverRef.current) return;
 
     let targetHit = false;
 
-    // 1. Check Anthill Click -> Nuke Mechanics
     anthillsRef.current.forEach((hill) => {
       if (hill.destroyedTime && hill.destroyedTime > 0) return;
       const dist = Math.hypot(clickX - hill.x, clickY - hill.y);
@@ -1172,10 +1197,9 @@ useEffect(() => {
         shakeRef.current = 6;
 
         if (hill.hp <= 0) {
-          // NUKE THE ANTHILL!
           sound.playExplosion();
           shakeRef.current = 26;
-          hill.destroyedTime = 5; // 5s short rebuilding cooldown
+          hill.destroyedTime = 5;
           hill.hp = 3;
 
           shockwavesRef.current.push({
@@ -1186,7 +1210,6 @@ useEffect(() => {
             color: '#f59e0b',
           });
 
-          // Vaporize surrounding ants
           antsRef.current = antsRef.current.filter((ant) => {
             const adist = Math.hypot(ant.x - hill.x, ant.y - hill.y);
             if (adist <= 240) {
@@ -1212,7 +1235,6 @@ useEffect(() => {
       }
     });
 
-    // 2. Check Mechanic Pods Click
     mechanicPodsRef.current.forEach((pod, idx) => {
       const dist = Math.hypot(clickX - pod.x, clickY - pod.y);
       if (dist <= pod.radius + 20) {
@@ -1263,7 +1285,6 @@ useEffect(() => {
       }
     });
 
-    // 3. Check Titan Ant Click (Crazy Levels)
     antsRef.current.forEach((ant) => {
       if (ant.isBigAnt) {
         const dist = Math.hypot(clickX - ant.x, clickY - ant.y);
@@ -1272,7 +1293,6 @@ useEffect(() => {
           sound.playZap();
           ant.health = Math.max(0, ant.health - 1);
           addParticles(ant.x, ant.y, 8, '#f43f5e');
-          // Knock titan back
           const knockAngle = Math.atan2(ant.y - clickY, ant.x - clickX);
           ant.x += Math.cos(knockAngle) * 45;
           ant.y += Math.sin(knockAngle) * 45;
@@ -1282,9 +1302,8 @@ useEffect(() => {
       }
     });
 
-    // 4. Open Space Click -> Repulsor shockwave
     if (!targetHit && clickRepulseCooldownRef.current <= 0) {
-      clickRepulseCooldownRef.current = 14; // ~0.23s cooldown
+      clickRepulseCooldownRef.current = 14;
       sound.playClick();
       shockwavesRef.current.push({
         x: clickX,
@@ -1294,7 +1313,6 @@ useEffect(() => {
         color: activeSkin.color,
       });
 
-      // Push nearest ants back
       antsRef.current.forEach((ant) => {
         const adist = Math.hypot(ant.x - clickX, ant.y - clickY);
         if (adist < 85 && adist > 2) {
@@ -1305,7 +1323,6 @@ useEffect(() => {
     }
   };
 
-  // Handle Mouse & Touch movement
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       mouseRef.current = { x: e.clientX, y: e.clientY };
@@ -1316,7 +1333,6 @@ useEffect(() => {
         const touch = e.touches[0];
         mouseRef.current = { x: touch.clientX, y: touch.clientY };
       }
-      // Only prevent page scrolling if touch is directly on the canvas during active play
       if (e.cancelable && e.target === canvasRef.current && !isPausedRef.current && !isGameOverRef.current) {
         e.preventDefault();
       }
@@ -1324,7 +1340,6 @@ useEffect(() => {
 
     const handleTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
-      // CRITICAL FOR TABLETS: If user touched a button, input, modal, or HUD, do not intercept or preventDefault!
       if (target?.closest('button, a, input, select, textarea, [role="button"], .pointer-events-auto')) {
         return;
       }
@@ -1366,13 +1381,12 @@ useEffect(() => {
     };
   }, [level]);
 
-// Main 60 FPS Render & Simulation Loop
-useEffect(() => {
-  if (!fontsReady) return; // <-- ЖДЁМ ЗАГРУЗКИ ШРИФТОВ
-  const canvas = canvasRef.current;
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  useEffect(() => {
+    if (!fontsReady) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     let animId: number;
     let width = (canvas.width = window.innerWidth);
@@ -1385,7 +1399,6 @@ useEffect(() => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Ambient background ants crawling gently in background (like main screen)
     const bgAntCount = 28;
     const bgAnts = Array.from({ length: bgAntCount }).map(() => ({
       x: Math.random() * width,
@@ -1398,7 +1411,6 @@ useEffect(() => {
       tint: 'rgba(230, 240, 255, 0.35)',
     }));
 
-    // Decorative floating dust and soil motes
     const dustMotes = Array.from({ length: 42 }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -1417,28 +1429,22 @@ useEffect(() => {
       const BOX_CENTER_X = (BOX_LEFT + BOX_RIGHT) / 2;
       const BOX_CENTER_Y = (BOX_TOP + BOX_BOTTOM) / 2;
 
-      // Update click repulse cooldown
       if (clickRepulseCooldownRef.current > 0) {
         clickRepulseCooldownRef.current -= 1;
       }
 
-      // ONLY simulate if not paused, not gameover, and countdown finished!
       if (!isPausedRef.current && !isGameOverRef.current && countdownRef.current === null) {
         const speedMult = speedMultiplierRef.current;
         gameTimeRef.current += (1 / 60) * speedMult;
 
-        // Border cooldown
         if (borderHitCooldownRef.current > 0) {
           borderHitCooldownRef.current -= 1;
         }
 
-        // Freeze timer (from EMP pods)
         if (freezeTimerRef.current > 0) {
           freezeTimerRef.current -= 1 / 60;
         }
 
-        // Fair header section check: If player goes to the header section, the whole level stops so it would be fair!
-        // And when we go back to the container, we can play again!
         const mx = mouseRef.current.x;
         const my = mouseRef.current.y;
 
@@ -1457,14 +1463,12 @@ useEffect(() => {
           addFloatingText('back in container! play!', width / 2, BOX_TOP + 40, '#a3e635');
         }
 
-        // Update placed honey traps
         honeyTrapsRef.current.forEach((trap) => {
           trap.duration -= (1 / 60) * speedMult;
           trap.pulse += 0.06 * speedMult;
         });
         honeyTrapsRef.current = honeyTrapsRef.current.filter((trap) => trap.duration > 0);
 
-        // Left, right, and bottom borders remain hazardous containment boundaries
         const isBreachingBorder = mx <= BOX_LEFT || mx >= BOX_RIGHT || my >= BOX_BOTTOM;
 
         if (isBreachingBorder && borderHitCooldownRef.current <= 0) {
@@ -1488,7 +1492,6 @@ useEffect(() => {
         const safeTargetX = Math.max(BOX_LEFT + 2, Math.min(BOX_RIGHT - 2, mx));
         const safeTargetY = Math.max(BOX_TOP + 2, Math.min(BOX_BOTTOM - 2, my));
 
-        // Free mode difficulty shift
         if (level.isEndless) {
           freeModeTimerRef.current -= 1 / 60;
           setFreeModeSecondsLeft(Math.max(0, Math.ceil(freeModeTimerRef.current)));
@@ -1505,7 +1508,6 @@ useEffect(() => {
           }
         }
 
-        // Update progress %
         if (!level.isEndless) {
           const currentProgress = Math.min(100, (gameTimeRef.current / level.durationSeconds) * 100);
           progressRef.current = currentProgress;
@@ -1527,14 +1529,11 @@ useEffect(() => {
           }
         }
 
-        // Score tick
         scoreRef.current += Math.round(1 * speedMult);
         setScore(scoreRef.current);
 
         const effectiveDiff = level.isEndless ? currentDiffRef.current : level.difficulty;
 
-        // Spawn speed portals dynamically based on difficulty
-        // Insane: Normal speed ONLY, no portals!
         if (effectiveDiff === 'Insane') {
           speedMultiplierRef.current = 1.0;
           if (currentSpeed !== 1.0) {
@@ -1543,7 +1542,6 @@ useEffect(() => {
           }
           portalsRef.current = [];
         } else {
-          // Hard & Harder & Crazy: NO slow chance! Only normal, fast, hyper
           let allowedSpeeds: SpeedMultiplier[] = [0.5, 1.0, 1.5, 2.0];
           if (effectiveDiff === 'Hard' || effectiveDiff === 'Harder' || effectiveDiff === 'Crazy') {
             allowedSpeeds = [1.0, 1.5, 2.0];
@@ -1572,12 +1570,6 @@ useEffect(() => {
           }
         }
 
-        // Spawn interactive power-up pods based on difficulty:
-        // Easy: higher chance, all power-ups (nuke, emp, sugar geyser, honey trap)
-        // Normal: less chance than easy, all power-ups
-        // Hard & Harder: less than normal, NO nuke and NO slow chance
-        // Insane: NO honey trap, NO nuke, normal speed only
-        // Crazy: minimal chance, NO honey trap, NO nuke, NO slow chance
         let availablePodTypes: ('nuke_bomb' | 'emp_bomb' | 'honey_trap')[] = [
           'nuke_bomb',
           'emp_bomb',
@@ -1621,7 +1613,6 @@ useEffect(() => {
           });
         }
 
-        // Spawn sugar cubes: more rare, max 15 per level, disappears after 10 secs
         if (
           sugarRef.current < 15 &&
           sugarCubesRef.current.length < 2 &&
@@ -1637,9 +1628,7 @@ useEffect(() => {
           });
         }
 
-        // Update Anthills:
-        // Anthills get bigger every second as the level progresses:
-        // In easy levels it grows slower, the more difficult a level is the faster it grows
+        // === ANTHILLS: sync pulse + destroyed cooldown ===
         const effectiveDiffKey = level.isEndless ? currentDiffRef.current : level.difficulty;
         const secGrowthRate =
           effectiveDiffKey === 'Easy' ? 0.22 :
@@ -1651,43 +1640,106 @@ useEffect(() => {
         anthillsRef.current.forEach((hill) => {
           hill.pulse += 0.05 * speedMult;
 
-          // Anthills get bigger every second
           const baseR = hill.baseRadius || 19;
           hill.radius = baseR + gameTimeRef.current * secGrowthRate;
 
           if (hill.destroyedTime && hill.destroyedTime > 0) {
             hill.destroyedTime -= 1 / 60;
-            return;
-          }
-
-          hill.spawnCooldown -= 1 * speedMult;
-
-          // More ants because now they are smaller
-          const scaledMaxAnts = Math.round(level.maxAnts * 1.6);
-          if (hill.spawnCooldown <= 0 && antsRef.current.length < scaledMaxAnts && freezeTimerRef.current <= 0) {
-            hill.spawnCooldown = Math.max(10, Math.round(hill.maxSpawnCooldown * 0.7));
-            const antSize = getAntSizeForDifficulty(effectiveDiffKey, hill.type);
-
-            antsRef.current.push({
-              id: Math.random() * 1000000,
-              x: hill.x,
-              y: hill.y,
-              vx: (Math.random() - 0.5) * 1.5,
-              vy: (Math.random() - 0.5) * 1.5,
-              speed: (Math.random() * 0.9 + 2.0) * (level.bpm / 125) * (level.id <= 23 ? 1 + level.id * 0.025 : 1.3),
-              size: antSize,
-              type: hill.type === 'fire' ? 'fire' : hill.type === 'acid' ? 'acid' : 'worker',
-              angle: Math.random() * Math.PI * 2,
-              legPhase: Math.random() * 10,
-              health: hill.type === 'fire' ? 2 : 1,
-            });
           }
         });
 
-        // Update Ants (only if not frozen by EMP)
+        // === SIMULTANEOUS VOLLEYS FROM ALL ANTHILLS ===
+        const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey);
+        const HARD_ANT_CAP = 300;
+
+        if (freezeTimerRef.current <= 0 && antsRef.current.length < HARD_ANT_CAP) {
+          const volleyIndex = Math.floor(gameTimeRef.current / spawnStyle.volleyInterval);
+
+          if (volleyIndex > lastVolleyIndexRef.current) {
+            lastVolleyIndexRef.current = volleyIndex;
+
+            // Telegraph volley with shockwave at each anthill
+            anthillsRef.current.forEach((hill) => {
+              if (hill.destroyedTime && hill.destroyedTime > 0) return;
+              shockwavesRef.current.push({
+                x: hill.x,
+                y: hill.y,
+                radius: 5,
+                maxRadius: hill.radius + 30,
+                color: '#fbbf24',
+              });
+            });
+
+            // Fire volley from EVERY alive anthill
+            anthillsRef.current.forEach((hill) => {
+              if (hill.destroyedTime && hill.destroyedTime > 0) return;
+
+              for (let i = 0; i < spawnStyle.volleySize; i++) {
+                const roll = Math.random();
+                let antType: 'worker' | 'fire' | 'acid' = 'worker';
+                if (roll < spawnStyle.fireChance) antType = 'fire';
+                else if (roll < spawnStyle.fireChance + spawnStyle.acidChance) antType = 'acid';
+
+                const antSize = getAntSizeForDifficulty(effectiveDiffKey, antType);
+
+                const spawnAngle = Math.random() * Math.PI * 2;
+                const spawnDist = hill.radius + Math.random() * 8;
+                const spawnX = hill.x + Math.cos(spawnAngle) * spawnDist;
+                const spawnY = hill.y + Math.sin(spawnAngle) * spawnDist;
+
+                let targetAngleOffset = 0;
+                const dxToCursor = safeTargetX - spawnX;
+                const dyToCursor = safeTargetY - spawnY;
+                const baseAngle = Math.atan2(dyToCursor, dxToCursor);
+
+                switch (spawnStyle.formation) {
+                  case 'direct':
+                    targetAngleOffset = 0;
+                    break;
+                  case 'orbit':
+                    targetAngleOffset = (Math.random() - 0.5) * 0.8;
+                    break;
+                  case 'zigzag':
+                    targetAngleOffset = Math.sin(gameTimeRef.current * 3 + i) * 0.9;
+                    break;
+                  case 'spiral':
+                    targetAngleOffset = Math.sin(gameTimeRef.current * 2 + i * 1.5) * 1.2;
+                    break;
+                  case 'twin':
+                    if (i % 2 === 0) {
+                      targetAngleOffset = 0;
+                    } else {
+                      const mirroredX = BOX_CENTER_X * 2 - safeTargetX;
+                      const mirroredY = BOX_CENTER_Y * 2 - safeTargetY;
+                      targetAngleOffset = Math.atan2(mirroredY - spawnY, mirroredX - spawnX) - baseAngle;
+                    }
+                    break;
+                }
+
+                antsRef.current.push({
+                  id: Math.random() * 1000000,
+                  x: spawnX,
+                  y: spawnY,
+                  vx: 0,
+                  vy: 0,
+                  speed:
+                    (Math.random() * 0.9 + 2.0) *
+                    (level.bpm / 125) *
+                    spawnStyle.antSpeedBoost,
+                  size: antSize,
+                  type: antType,
+                  angle: spawnAngle,
+                  legPhase: Math.random() * 10,
+                  health: antType === 'fire' ? 2 : 1,
+                  targetAngleOffset,
+                });
+              }
+            });
+          }
+        }
+
         if (freezeTimerRef.current <= 0) {
           antsRef.current.forEach((ant) => {
-            // 1. If ant is already stuck in honey, count down and remain completely frozen!
             if (ant.honeyFreezeTimer && ant.honeyFreezeTimer > 0) {
               ant.honeyFreezeTimer -= (1 / 60) * speedMult;
               ant.vx = 0;
@@ -1695,11 +1747,10 @@ useEffect(() => {
               return;
             }
 
-            // 2. Check if ant walks into any placed honey trap -> freezes for 5 secs!
             for (const trap of honeyTrapsRef.current) {
               const trapDist = Math.hypot(ant.x - trap.x, ant.y - trap.y);
               if (trapDist <= trap.radius) {
-                ant.honeyFreezeTimer = 5.0; // 5 full seconds!
+                ant.honeyFreezeTimer = 5.0;
                 ant.vx = 0;
                 ant.vy = 0;
                 sound.playZap();
@@ -1723,7 +1774,9 @@ useEffect(() => {
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-            const turnRate = ant.isBigAnt ? 0.04 : 0.08 * speedMult;
+            const turnRate = ant.isBigAnt
+              ? 0.04
+              : (0.08 + spawnStyle.homing * 0.06) * speedMult;
             ant.angle += angleDiff * turnRate;
 
             const moveSpeed = ant.speed * speedMult;
@@ -1734,7 +1787,6 @@ useEffect(() => {
             ant.y += ant.vy;
             ant.legPhase += 0.25 * speedMult;
 
-            // Bounce within box
             if (ant.x - ant.size < BOX_LEFT) {
               ant.x = BOX_LEFT + ant.size;
               ant.vx = Math.abs(ant.vx);
@@ -1752,7 +1804,6 @@ useEffect(() => {
               ant.vy = -Math.abs(ant.vy);
             }
 
-            // Hit test with cursor
             if (dist < ant.size + 10 && borderHitCooldownRef.current <= 0) {
               healthRef.current -= 1;
               setHealth(healthRef.current);
@@ -1772,7 +1823,6 @@ useEffect(() => {
           });
         }
 
-        // Update Obstacles (Buzzsaws & Lasers)
         obstaclesRef.current.forEach((obs) => {
           if (obs.type === 'buzzsaw') {
             obs.x += (obs.vx || 0) * speedMult;
@@ -1817,11 +1867,9 @@ useEffect(() => {
           }
         });
 
-        // Update Sugar Cubes countdown & collect
         sugarCubesRef.current = sugarCubesRef.current.filter((cube) => {
           cube.timeLeft = (cube.timeLeft ?? 10.0) - (1 / 60) * speedMult;
           if (cube.timeLeft <= 0) {
-            // Disappears after 10 seconds
             addParticles(cube.x, cube.y, 4, '#ffffff');
             return false;
           }
@@ -1837,7 +1885,6 @@ useEffect(() => {
             addParticles(cube.x, cube.y, 8, '#ffffff');
             onProgressDailyChallenge?.({ type: 'collect_sugar', count: cube.value });
 
-            // 10 sugars = 1 shield! (More sugars = more shields)
             const earnedShields = Math.floor(sugarRef.current / 10);
             if (earnedShields > bonusShieldsAwardedRef.current) {
               const diff = earnedShields - bonusShieldsAwardedRef.current;
@@ -1854,7 +1901,6 @@ useEffect(() => {
           return true;
         });
 
-        // Speed Portals
         portalsRef.current.forEach((portal) => {
           portal.angle += 0.03 * speedMult;
           const dist = Math.hypot(safeTargetX - portal.x, safeTargetY - portal.y);
@@ -1866,7 +1912,6 @@ useEffect(() => {
             portal.active = false;
             addFloatingText(`${portal.label}!`, portal.x, portal.y - 20, portal.color);
 
-            // Pass warp gate blasts nearby ants!
             antsRef.current = antsRef.current.filter((ant) => {
               const adist = Math.hypot(ant.x - portal.x, ant.y - portal.y);
               if (adist <= 150) {
@@ -1879,25 +1924,21 @@ useEffect(() => {
         });
         portalsRef.current = portalsRef.current.filter((p) => p.active);
 
-        // Cursor Trail
         trailPointsRef.current.push({ x: mx, y: my, alpha: 1.0 });
         if (trailPointsRef.current.length > 14) trailPointsRef.current.shift();
         trailPointsRef.current.forEach((tp) => (tp.alpha *= 0.88));
       }
 
-      // Update honey sipping animations
       honeySipAnimationsRef.current.forEach((sip) => {
         sip.progress += 0.025;
       });
       honeySipAnimationsRef.current = honeySipAnimationsRef.current.filter((sip) => sip.progress < 1.0);
 
-      // Update shockwaves
       shockwavesRef.current.forEach((sw) => {
         sw.radius += 9;
       });
       shockwavesRef.current = shockwavesRef.current.filter((sw) => sw.radius < sw.maxRadius);
 
-      // Update particles
       particlesRef.current.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
@@ -1905,19 +1946,14 @@ useEffect(() => {
       });
       particlesRef.current = particlesRef.current.filter((p) => p.life < p.maxLife);
 
-      // Update floating texts
       floatingTextsRef.current.forEach((t) => {
         t.y -= 0.8;
         t.life += 1;
       });
       floatingTextsRef.current = floatingTextsRef.current.filter((t) => t.life < t.maxLife);
 
-      // -------------------------------------------------------------
-      // RENDERING CANVAS
-      // -------------------------------------------------------------
       ctx.save();
 
-      // Screen Shake
       if (shakeRef.current > 0) {
         const shakeX = (Math.random() - 0.5) * shakeRef.current;
         const shakeY = (Math.random() - 0.5) * shakeRef.current;
@@ -1926,11 +1962,9 @@ useEffect(() => {
         if (shakeRef.current < 0.5) shakeRef.current = 0;
       }
 
-      // 1. Clean Black Background matching Main Screen (nothing distracting)
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle faint dot grid (matching main screen aesthetic)
       ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
       for (let x = 30; x < width; x += 40) {
         for (let y = 30; y < height; y += 40) {
@@ -1938,35 +1972,29 @@ useEffect(() => {
         }
       }
 
-      // 2. Sketched Perimeter Border
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.lineWidth = 1.8;
       ctx.strokeRect(BOX_LEFT, BOX_TOP, BOX_RIGHT - BOX_LEFT, BOX_BOTTOM - BOX_TOP);
 
-      // Sketched corner brackets
       const bSize = 14;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2.0;
-      // Top-Left
       ctx.beginPath();
       ctx.moveTo(BOX_LEFT, BOX_TOP + bSize);
       ctx.lineTo(BOX_LEFT, BOX_TOP);
       ctx.lineTo(BOX_LEFT + bSize, BOX_TOP);
       ctx.stroke();
-      // Top-Right
       ctx.beginPath();
       ctx.moveTo(BOX_RIGHT - bSize, BOX_TOP);
       ctx.lineTo(BOX_RIGHT, BOX_TOP);
       ctx.lineTo(BOX_RIGHT, BOX_TOP + bSize);
       ctx.stroke();
-      // Bottom-Left
       ctx.beginPath();
       ctx.moveTo(BOX_LEFT, BOX_BOTTOM - bSize);
       ctx.lineTo(BOX_LEFT, BOX_BOTTOM);
       ctx.lineTo(BOX_LEFT + bSize, BOX_BOTTOM);
       ctx.stroke();
-      // Bottom-Right
       ctx.beginPath();
       ctx.moveTo(BOX_RIGHT - bSize, BOX_BOTTOM);
       ctx.lineTo(BOX_RIGHT, BOX_BOTTOM);
@@ -1977,13 +2005,11 @@ useEffect(() => {
       const beatCycle = Math.sin(gameTimeRef.current * (level.bpm / 60) * Math.PI * 2);
       const beatPulse = 0.5 + 0.5 * Math.max(0, beatCycle);
 
-      // 3. Draw Anthills (Interactive top-down hand-drawn sketchy anthills)
       anthillsRef.current.forEach((hill) => {
         const isDestroyed = Boolean(hill.destroyedTime && hill.destroyedTime > 0);
         drawHandDrawnAnthill(ctx, hill, beatPulse, isDestroyed);
       });
 
-      // 4. Draw Mechanic Pods (Clickable with authentic hand-drawn items)
       mechanicPodsRef.current.forEach((pod) => {
         pod.pulse += 0.05;
         if (pod.type === 'nuke_bomb') {
@@ -1992,10 +2018,11 @@ useEffect(() => {
           drawEmpBombPod(ctx, pod);
         } else if (pod.type === 'honey_trap') {
           drawHoneyJarPod(ctx, pod);
+        } else if (pod.type === 'queen_cocoon') {
+          drawQueenCocoonPod(ctx, pod);
         }
       });
 
-      // 4.2 Draw Honey Sipping Animation (pouring from tipped honey jar into puddle)
       honeySipAnimationsRef.current.forEach((sip) => {
         ctx.save();
         ctx.translate(sip.x, sip.y);
@@ -2003,7 +2030,6 @@ useEffect(() => {
         ctx.globalAlpha = alpha;
 
         const jarY = -40;
-        // Tipped honey jar
         ctx.save();
         ctx.translate(14, jarY);
         ctx.rotate(-0.45);
@@ -2022,7 +2048,6 @@ useEffect(() => {
         ctx.fill();
         ctx.restore();
 
-        // Viscous golden syrup stream dripping down
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 3.5;
         ctx.beginPath();
@@ -2030,7 +2055,6 @@ useEffect(() => {
         ctx.quadraticCurveTo(12, jarY * 0.5, 0, 0);
         ctx.stroke();
 
-        // Dripping splash droplets
         for (let d = 0; d < 4; d++) {
           const dAng = (d * Math.PI) / 2 + sip.progress * 6;
           const dR = sip.progress * 18;
@@ -2043,7 +2067,6 @@ useEffect(() => {
         ctx.restore();
       });
 
-      // 4.5 Draw Placed Honey Traps (Golden viscous puddles that freeze ants for 5 seconds)
       honeyTrapsRef.current.forEach((trap) => {
         const pulse = Math.sin(trap.pulse) * 3;
         const tr = trap.radius + pulse;
@@ -2051,7 +2074,6 @@ useEffect(() => {
         ctx.save();
         ctx.translate(trap.x, trap.y);
 
-        // 1. Soft glowing outer amber aura
         const outerGlow = ctx.createRadialGradient(0, 0, tr * 0.3, 0, 0, tr + 20);
         outerGlow.addColorStop(0, 'rgba(251, 191, 36, 0.4)');
         outerGlow.addColorStop(0.7, 'rgba(245, 158, 11, 0.2)');
@@ -2061,7 +2083,6 @@ useEffect(() => {
         ctx.arc(0, 0, tr + 20, 0, Math.PI * 2);
         ctx.fill();
 
-        // 2. Viscous organic amber puddle with wavy undulating rim
         ctx.beginPath();
         const lobCount = 8;
         for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.1) {
@@ -2086,7 +2107,6 @@ useEffect(() => {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // 3. Etched hexagonal honeycomb pattern in center
         ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
         ctx.lineWidth = 1.2;
         const hexR = 13;
@@ -2112,7 +2132,6 @@ useEffect(() => {
           ctx.stroke();
         });
 
-        // 4. Glossy specular light reflections (thick viscous shine)
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.beginPath();
         ctx.ellipse(-tr * 0.35, -tr * 0.3, tr * 0.22, tr * 0.1, -0.4, 0, Math.PI * 2);
@@ -2125,7 +2144,6 @@ useEffect(() => {
         ctx.restore();
       });
 
-      // 5. Draw Expanding Shockwaves
       shockwavesRef.current.forEach((sw) => {
         const alpha = Math.max(0, 1 - sw.radius / sw.maxRadius);
         ctx.save();
@@ -2138,7 +2156,6 @@ useEffect(() => {
         ctx.restore();
       });
 
-      // 6. Draw Sugar Cubes (Authentic pure WHITE sugar cubes, disappears after 10s)
       sugarCubesRef.current.forEach((cube) => {
         cube.pulse += 0.08;
         const timeLeft = cube.timeLeft ?? 10.0;
@@ -2150,14 +2167,12 @@ useEffect(() => {
         ctx.save();
         ctx.translate(cube.x, cube.y);
 
-        // Front Face (crisp white)
         ctx.fillStyle = '#f8fafc';
         ctx.fillRect(-half, -half, sz, sz);
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.2;
         ctx.strokeRect(-half, -half, sz, sz);
 
-        // Top Facet Highlight
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.moveTo(-half, -half);
@@ -2168,7 +2183,6 @@ useEffect(() => {
         ctx.fill();
         ctx.stroke();
 
-        // Right Facet Shadow
         ctx.fillStyle = '#e2e8f0';
         ctx.beginPath();
         ctx.moveTo(half, -half);
@@ -2179,7 +2193,6 @@ useEffect(() => {
         ctx.fill();
         ctx.stroke();
 
-        // Glitter sparkle glint
         if (Math.sin(cube.pulse * 3) > 0.3) {
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 1.2;
@@ -2200,7 +2213,6 @@ useEffect(() => {
         ctx.restore();
       });
 
-      // 7. Draw Speed Floor Arrows (Not portals! 1 arrow for slow, more arrows for faster, with speed amount)
       portalsRef.current.forEach((portal) => {
         portal.angle += 0.05;
         ctx.save();
@@ -2211,7 +2223,6 @@ useEffect(() => {
           portal.targetSpeed === 1.0 ? 1 :
           portal.targetSpeed === 1.5 ? 2 : 3;
 
-        // Glowing floor chevron pad
         ctx.fillStyle = `${portal.color}15`;
         ctx.strokeStyle = `${portal.color}70`;
         ctx.lineWidth = 1.4;
@@ -2220,7 +2231,6 @@ useEffect(() => {
         ctx.fill();
         ctx.stroke();
 
-        // Forward chevrons ('>' '>>' '>>>')
         const spacing = 11;
         const startX = -((arrowCount - 1) * spacing) / 2;
 
@@ -2235,7 +2245,6 @@ useEffect(() => {
           ctx.stroke();
         }
 
-        // Overhead speed label in handwritten font (speed amount only, no definition)
         ctx.fillStyle = '#ffffff';
         ctx.font = HAND_BOLD_SM;
         ctx.textAlign = 'center';
@@ -2244,7 +2253,6 @@ useEffect(() => {
         ctx.restore();
       });
 
-      // 8. Draw Obstacles (Buzzsaws)
       obstaclesRef.current.forEach((obs) => {
         if (obs.type === 'buzzsaw') {
           const r = obs.radius || 20;
@@ -2261,7 +2269,6 @@ useEffect(() => {
           ctx.lineWidth = 2;
           ctx.stroke();
 
-          // Teeth
           const teeth = 8;
           ctx.fillStyle = '#e2e8f0';
           for (let t = 0; t < teeth; t++) {
@@ -2274,12 +2281,10 @@ useEffect(() => {
         }
       });
 
-      // 9. Draw Ants (White ants identical to main screen)
       antsRef.current.forEach((ant) => {
         drawMainScreenStyleAnt(ctx, ant);
       });
 
-      // 10. Draw Cursor Trail & Authentic Player Skin Shape
       trailPointsRef.current.forEach((tp) => {
         ctx.fillStyle = activeSkin.trailColor;
         ctx.beginPath();
@@ -2287,13 +2292,11 @@ useEffect(() => {
         ctx.fill();
       });
 
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
+      const mx2 = mouseRef.current.x;
+      const my2 = mouseRef.current.y;
 
-      // Authentic shape corresponding to active unlocked skin in levels
-      drawPlayerSkin(ctx, activeSkin, mx, my, 15, gameTimeRef.current);
+      drawPlayerSkin(ctx, activeSkin, mx2, my2, 15, gameTimeRef.current);
 
-      // 11. Draw Particles
       particlesRef.current.forEach((p) => {
         const alpha = 1 - p.life / p.maxLife;
         ctx.fillStyle = p.color;
@@ -2304,7 +2307,6 @@ useEffect(() => {
         ctx.globalAlpha = 1;
       });
 
-      // 12. Draw Floating Texts
       floatingTextsRef.current.forEach((t) => {
         const alpha = 1 - t.life / t.maxLife;
         ctx.fillStyle = t.color;
@@ -2325,7 +2327,7 @@ useEffect(() => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
     };
-}, [level, activeSkin, onGameOver, onVictory, fontsReady]);
+  }, [level, activeSkin, onGameOver, onVictory, fontsReady]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black select-none cursor-none">
@@ -2335,7 +2337,6 @@ useEffect(() => {
         style={{ touchAction: 'none' }}
       />
 
-      {/* Top Header HUD: Minimalist, all lowercase, stops level if cursor or touch enters header */}
       <div
         onPointerEnter={() => {
           if (!isPausedRef.current && !isGameOverRef.current && countdownRef.current === null) {
@@ -2354,7 +2355,6 @@ useEffect(() => {
         className="absolute top-0 inset-x-0 z-20 px-3 sm:px-6 py-1 sm:py-2 flex flex-col gap-1.5 pointer-events-auto bg-gradient-to-b from-black/90 via-black/50 to-transparent select-none"
       >
         <div className="flex items-center justify-between gap-2">
-          {/* Level name & difficulty - lowercase, truncate with ... so it doesn't wrap on mobile */}
           <div className="flex items-center gap-2 min-w-0 max-w-[50%] sm:max-w-[40%]">
             <span
               className="px-2 py-0.5 rounded-full text-xs font-['Patrick_Hand'] lowercase border shrink-0"
@@ -2371,15 +2371,12 @@ useEffect(() => {
             </span>
           </div>
 
-          {/* Center: speed name only (no scales of speed, leave just names!) */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border border-neutral-700/60 bg-neutral-900/50 font-['Patrick_Hand'] text-xs text-neutral-300 lowercase">
             <Zap className="w-3.5 h-3.5 text-neutral-400" />
             <span>{getSpeedName(currentSpeed)}</span>
           </div>
 
-          {/* Right: Shields & Tab pause (sugar, pts, and honey trap removed from header per request) */}
           <div className="flex items-center gap-2.5 sm:gap-4">
-            {/* Health shields */}
             <div className="flex items-center gap-1">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Shield
@@ -2393,7 +2390,6 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Tab pause button - sensor & mouse clickable */}
             <button
               type="button"
               onClick={(e) => {
@@ -2414,7 +2410,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Minimal Progress Bar */}
         {!level.isEndless && (
           <div className="w-full bg-neutral-900/60 h-1 rounded-full border border-neutral-800/60 overflow-hidden">
             <div
@@ -2425,7 +2420,6 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Fair Header Stop Notification: Level stops when cursor is in header, plays again when back in container */}
       {isHeaderStopped && (
         <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none px-4 py-1.5 rounded-full bg-neutral-900/95 border border-amber-500/80 shadow-2xl text-amber-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-2 animate-bounce">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
@@ -2433,7 +2427,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* 3, 2, 1 Countdown & "ur cursor is in the center" */}
       {countdown !== null && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center pointer-events-none bg-black/45 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-3 text-center px-4">
@@ -2447,7 +2440,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Pause Menu Overlay: Click outside or back in container to play again */}
       {isPaused && (
         <div
           onClick={() => {
@@ -2523,7 +2515,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Game Over Screen: "u lost!" (no voltage writing, no caps) */}
       {gameState === 'lost' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
           <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
@@ -2578,7 +2569,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Victory Screen: "chamber clear!" (all lowercase, no caps) */}
       {gameState === 'won' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
           <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
