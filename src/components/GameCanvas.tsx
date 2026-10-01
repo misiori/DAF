@@ -1803,15 +1803,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             );
           }
         }
-
-        // === RAMP-UP INTERVAL: каждый следующий залп на 0.5 сек реже ===
+        // === REVERSE RAMP: сначала интервал большой (медленный спавн), потом уменьшается ===
         const baseInterval = getPhaseInterval(effectiveDiffKey);
         const phaseInterval = phase === 2 ? baseInterval * 0.85 : baseInterval;
 
-        // Estimate the current volley index for ramp-up
-        const currentVolleyEstimate = Math.floor(gameTimeRef.current / Math.max(0.1, phaseInterval));
-        const rampUpSeconds = Math.min(8, currentVolleyEstimate * 0.1); // cap at +8s
-        const rampedInterval = phaseInterval + rampUpSeconds;
+        // Start from a big interval, shrink it as the level progresses
+        // At the start of the level: interval = phaseInterval * 2.0
+        // At the end: interval = phaseInterval * 0.5
+        const levelProgressFrac = level.isEndless
+          ? 0
+          : Math.min(1, gameTimeRef.current / level.durationSeconds);
+
+        // easeOut curve: starts slow, gets faster near the end
+        const shrinkCurve = Math.pow(1 - levelProgressFrac, 1.5); // 1 → 0
+        const maxMultiplier = 2.0;   // start: 2x the base interval
+        const minMultiplier = 0.5;   // end: 0.5x the base interval
+        const intervalMultiplier =
+          minMultiplier + (maxMultiplier - minMultiplier) * shrinkCurve;
+
+        const rampedInterval = phaseInterval * intervalMultiplier;
 
         const effectiveInterval = level.isEndless
           ? spawnStyle.volleyInterval
