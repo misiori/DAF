@@ -589,6 +589,25 @@ class SoundSystem {
     osc.stop(now + 0.14);
   }
 
+  public playPowerUpSound() {
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+      gain.gain.setValueAtTime(0.3, now + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.15);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(now + idx * 0.05);
+      osc.stop(now + idx * 0.05 + 0.16);
+    });
+  }
+
   public playEmp() {
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
     this.init();

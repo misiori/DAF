@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Play,
   Volume2,
   VolumeX,
   CheckCircle2,
+  Info,
+  X,
 } from 'lucide-react';
 import { PlayerProfile } from '../types/game';
 import { SkinRenderer } from './SkinRenderer';
@@ -37,6 +39,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onToggleMute,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [showHowTo, setShowHowTo] = useState(false);
 
   // Background Canvas: Minimal subtle ambient ants crawling gently
   useEffect(() => {
@@ -207,6 +210,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
       {/* Center: Title manuscript style & Carelessly Circled Play Icon */}
       <div className="relative z-20 flex flex-col items-center justify-center my-auto text-center px-4">
+        {/* Info Button above the title */}
+        <button
+          onClick={() => {
+            sound.playClick();
+            setShowHowTo(true);
+          }}
+          className="mb-4 p-1.5 rounded-full bg-neutral-900/40 hover:bg-neutral-800/80 border border-neutral-700/50 hover:border-neutral-500 text-neutral-400 hover:text-white transition-all active:scale-95 cursor-pointer backdrop-blur-sm"
+          title="how to play"
+        >
+          <Info className="w-5 h-5" />
+        </button>
+
         {/* Title in manuscript handwritten font with ! in the end */}
         <motion.h1
           initial={{ opacity: 0, scale: 0.95 }}
@@ -265,6 +280,64 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           profile
         </button>
       </div>
+
+      {/* How to Play Modal */}
+      <AnimatePresence>
+        {showHowTo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => setShowHowTo(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm rounded-[30px_20px_35px_20px/20px_35px_20px_30px] bg-neutral-900 border border-neutral-700/80 p-6 sm:p-8 shadow-2xl"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setShowHowTo(false);
+                }}
+                className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-neutral-800 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h2 className="font-['Caveat'] text-3xl sm:text-4xl font-bold text-neutral-100 mb-4 lowercase text-center">
+                how to play
+              </h2>
+
+              <div className="space-y-4 font-['Patrick_Hand'] text-lg sm:text-xl text-neutral-300 leading-snug">
+                <p>
+                  run away from ants with ur cursor
+                </p>
+                <p>
+                  destroy anthills to get points
+                </p>
+                <p>
+                  use powerups to enhance ur experience!
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setShowHowTo(false);
+                }}
+                className="mt-6 w-full py-2.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-800 hover:bg-neutral-700 active:scale-95 border border-neutral-600 hover:border-neutral-400 text-neutral-200 font-['Patrick_Hand'] text-xl lowercase transition-all cursor-pointer"
+              >
+                got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

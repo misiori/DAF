@@ -76,21 +76,7 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
     }));
 
     const render = () => {
-      ctx.fillStyle = '#07080c';
-      ctx.fillRect(0, 0, width, height);
-
-      // Subtle radial vignette in deep dark tones
-      const grad = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        Math.min(width, height) * 0.2,
-        width / 2,
-        height / 2,
-        Math.max(width, height) * 0.85
-      );
-      grad.addColorStop(0, themeColor ? `${themeColor}0a` : 'rgba(15, 23, 42, 0.25)');
-      grad.addColorStop(1, 'rgba(4, 5, 8, 0.98)');
-      ctx.fillStyle = grad;
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
       // Soft faint dot grid (matching manuscript & terrarium aesthetic)

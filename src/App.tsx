@@ -71,12 +71,7 @@ export default function App() {
       if (session?.user) {
         fetchProfileById(session.user.id).then((cloud) => {
           if (cloud) {
-            setProfile((currentLocal) => {
-              const merged = mergeProfiles(cloud, currentLocal);
-              saveGuestProfile(merged);
-              updateProfile(session.user.id, merged);
-              return merged;
-            });
+            setProfile(cloud);
           }
         });
       }
@@ -85,16 +80,28 @@ export default function App() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        localStorage.removeItem('ant_farm_guest_profile_v2');
+        localStorage.removeItem('ant_farm_guest_profile');
+        const freshGuest: PlayerProfile = {
+          id: 'guest',
+          username: 'Guest',
+          active_skin: 'amber',
+          unlocked_skins: ['amber'],
+          sugar_cubes: 0,
+          high_scores: {},
+          beaten_levels: [],
+          level_progress: {},
+          bonus_pts: 0,
+        };
+        setProfile(freshGuest);
+        return;
+      }
       if (session?.user) {
         const cloud = await fetchProfileById(session.user.id);
         if (cloud) {
-          setProfile((currentLocal) => {
-            const merged = mergeProfiles(cloud, currentLocal);
-            saveGuestProfile(merged);
-            updateProfile(session.user.id, merged);
-            return merged;
-          });
+          setProfile(cloud);
         }
       }
     });

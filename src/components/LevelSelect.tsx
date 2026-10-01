@@ -86,7 +86,7 @@ export const LevelSelect: React.FC<LevelSelectProps> = ({
   };
 
   return (
-    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-neutral-950 text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
       <AmbientAntBackground opacity={0.7} antCount={30} />
       {/* Top Bar: minimal header */}
       <div className="relative z-10 flex items-center justify-between pb-2 sm:pb-3 border-b border-neutral-800/80 shrink-0">

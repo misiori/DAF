@@ -59,6 +59,7 @@ export interface Anthill {
   x: number;
   y: number;
   radius: number;
+  baseRadius?: number;
   pulse: number;
   spawnCooldown: number;
   maxSpawnCooldown: number;
@@ -112,6 +113,7 @@ export interface SugarCube {
   y: number;
   value: number;
   pulse: number;
+  timeLeft?: number;
 }
 
 export interface Particle {

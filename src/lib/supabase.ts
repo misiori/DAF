@@ -191,6 +191,10 @@ export const getGuestProfile = (): PlayerProfile => {
 };
 
 export const saveGuestProfile = (profile: PlayerProfile) => {
+  if (profile.id !== 'guest' && !profile.id.startsWith('guest_')) {
+    // Only guest progress is saved to local storage; user accounts persist exclusively in cloud
+    return;
+  }
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profile));
   } catch (e) {

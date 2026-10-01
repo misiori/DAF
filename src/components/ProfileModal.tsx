@@ -29,6 +29,7 @@ import {
   isUsernameTaken,
   updateProfile,
   mergeProfiles,
+  saveGuestProfile,
 } from '../lib/supabase';
 import { PlayerProfile } from '../types/game';
 import { SkinRenderer, getSkinById } from './SkinRenderer';
@@ -359,24 +360,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       );
 
       if (data.user && data.session) {
-        const merged: PlayerProfile = mergeProfiles(
-          {
-            id: data.user.id,
-            username: trimmedUser,
-            email: trimmedEmail,
-            active_skin: currentProfile.active_skin || 'amber',
-            unlocked_skins: currentProfile.unlocked_skins || ['amber'],
-            sugar_cubes: currentProfile.sugar_cubes || 0,
-            high_scores: currentProfile.high_scores || {},
-            beaten_levels: currentProfile.beaten_levels || [],
-            level_progress: currentProfile.level_progress || {},
-            bonus_pts: currentProfile.bonus_pts || 0,
-            avatar_url: currentProfile.avatar_url,
-          },
-          currentProfile
-        );
-        onProfileUpdated(merged);
-        await updateProfile(data.user.id, merged);
+        const freshProfile: PlayerProfile = {
+          id: data.user.id,
+          username: trimmedUser,
+          email: trimmedEmail,
+          active_skin: 'amber',
+          unlocked_skins: ['amber'],
+          sugar_cubes: 0,
+          high_scores: {},
+          beaten_levels: [],
+          level_progress: {},
+          bonus_pts: 0,
+        };
+        localStorage.removeItem('ant_farm_guest_profile_v2');
+        localStorage.removeItem('ant_farm_guest_profile');
+        onProfileUpdated(freshProfile);
+        await updateProfile(data.user.id, freshProfile);
       }
     } catch (err: unknown) {
       sound.playHitSound();
@@ -390,6 +389,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleSignOut = async () => {
     sound.playClick();
     await supabase.auth.signOut();
+    localStorage.removeItem('ant_farm_guest_profile_v2');
+    localStorage.removeItem('ant_farm_guest_profile');
     const guest: PlayerProfile = {
       id: 'guest',
       username: 'Guest',
@@ -397,7 +398,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       unlocked_skins: ['amber'],
       sugar_cubes: 0,
       high_scores: {},
+      beaten_levels: [],
+      level_progress: {},
+      bonus_pts: 0,
     };
+    saveGuestProfile(guest);
     onProfileUpdated(guest);
   };
 
@@ -939,92 +944,96 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Tab 2: Leaderboard by PTS */}
         {tab === 'leaderboard' && (
           <div className="mt-5 space-y-3 overflow-y-auto pr-1">
-            <div className="flex items-center justify-between text-xs font-mono text-neutral-400 px-2">
-              <span>RANK & PLAYER</span>
-              <span>CLEARED • TOTAL PTS</span>
-            </div>
-
-            {loadingLeaderboard && (
-              <div className="text-center py-8 text-neutral-500 text-xs font-mono">
-                Calculating global PTS rankings...
-              </div>
-            )}
-
-            {!loadingLeaderboard && leaderboard.length === 0 && (
-              <div className="text-center py-8 text-neutral-500 text-xs font-mono">
-                No scores recorded yet. Beat levels to claim #1 rank!
-              </div>
-            )}
-
-            {leaderboard.map((player, idx) => {
-              const isCurrent = player.id === currentProfile.id;
-              const skin = getSkinById(player.active_skin);
-              const rank = idx + 1;
-
-              return (
-                <div
-                  key={player.id || idx}
-                  className={`p-3 rounded-2xl border transition-all flex items-center justify-between ${
-                    isCurrent
-                      ? 'bg-blue-950/40 border-blue-500/50 shadow-md shadow-blue-900/20'
-                      : 'bg-neutral-950/60 border-neutral-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Rank Badge */}
-                    <div className="w-7 text-center font-black font-mono text-sm">
-                      {rank === 1 ? (
-                        <span className="text-amber-400 font-bold">🥇</span>
-                      ) : rank === 2 ? (
-                        <span className="text-neutral-300 font-bold">🥈</span>
-                      ) : rank === 3 ? (
-                        <span className="text-amber-600 font-bold">🥉</span>
-                      ) : (
-                        <span className="text-neutral-500">#{rank}</span>
-                      )}
-                    </div>
-
-                    {player.avatar_url ? (
-                      <img
-                        src={player.avatar_url}
-                        alt="Avatar"
-                        className="w-9 h-9 rounded-xl object-cover border border-blue-500/50"
-                      />
-                    ) : (
-                      <SkinRenderer skinId={player.active_skin} size={36} />
-                    )}
-
-                    <div>
-                      <div className="font-bold text-sm text-white flex items-center gap-1.5">
-                        <span className="leading-none">{player.username}</span>
-                        {isMisioriUser(player.username, player.email) && (
-                          <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
-                            <CheckCircle2 className="w-3.5 h-3.5 fill-sky-400 text-neutral-950 inline-block shrink-0" />
-                          </span>
-                        )}
-                        {isCurrent && (
-                          <span className="text-[10px] font-mono text-blue-400 bg-blue-950 px-1.5 py-0.5 rounded border border-blue-800 leading-none">
-                            YOU
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-mono" style={{ color: skin.color }}>
-                        {skin.name}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-sm font-black font-mono text-blue-400">
-                      {player.total_pts.toLocaleString()} <span className="text-[10px] text-neutral-500">PTS</span>
-                    </div>
-                    <div className="text-[10px] font-mono text-neutral-400">
-                      {player.levels_cleared} / 23 Beaten
-                    </div>
-                  </div>
+            {viewedPlayer ? (
+              renderViewedPlayerCard()
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-base font-['Patrick_Hand'] text-neutral-400 px-2 lowercase">
+                  <span>rank & player</span>
+                  <span>total pts</span>
                 </div>
-              );
-            })}
+
+                {loadingLeaderboard && (
+                  <div className="text-center py-8 text-neutral-500 text-sm font-['Patrick_Hand'] lowercase">
+                    calculating global rankings...
+                  </div>
+                )}
+
+                {!loadingLeaderboard && leaderboard.length === 0 && (
+                  <div className="text-center py-8 text-neutral-500 text-sm font-['Patrick_Hand'] lowercase">
+                    no scores recorded yet. beat levels to claim #1 rank!
+                  </div>
+                )}
+
+                {leaderboard.map((player, idx) => {
+                  const isCurrent = player.id === currentProfile.id;
+                  const rank = idx + 1;
+
+                  return (
+                    <div
+                      key={player.id || idx}
+                      onClick={() => {
+                        sound.playClick();
+                        setShowSkinInViewedProfile(false);
+                        setViewedPlayer(player);
+                      }}
+                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer hover:bg-neutral-800/60 hover:border-neutral-700 ${
+                        isCurrent
+                          ? 'bg-neutral-900/90 border-neutral-700'
+                          : 'bg-neutral-950/60 border-neutral-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Rank Badge in handwritten font */}
+                        <div className="w-7 text-center font-bold font-['Patrick_Hand'] text-base">
+                          {rank === 1 ? (
+                            <span className="text-amber-400">🥇</span>
+                          ) : rank === 2 ? (
+                            <span className="text-neutral-300">🥈</span>
+                          ) : rank === 3 ? (
+                            <span className="text-amber-600">🥉</span>
+                          ) : (
+                            <span className="text-neutral-500">#{rank}</span>
+                          )}
+                        </div>
+
+                        {player.avatar_url ? (
+                          <img
+                            src={player.avatar_url}
+                            alt="Avatar"
+                            className="w-9 h-9 rounded-xl object-cover border border-neutral-700"
+                          />
+                        ) : (
+                          <SkinRenderer skinId={player.active_skin} size={36} />
+                        )}
+
+                        <div>
+                          <div className="font-bold text-base font-['Patrick_Hand'] text-white flex items-center gap-1.5">
+                            <span className="leading-none">{player.username}</span>
+                            {isMisioriUser(player.username, player.email) && (
+                              <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
+                                <CheckCircle2 className="w-3.5 h-3.5 fill-sky-400 text-neutral-950 inline-block shrink-0" />
+                              </span>
+                            )}
+                            {isCurrent && (
+                              <span className="text-[10px] font-['Patrick_Hand'] text-neutral-400 bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700 leading-none lowercase">
+                                you
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-lg font-bold font-['Patrick_Hand'] text-neutral-200">
+                          {player.total_pts.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 
@@ -1037,123 +1046,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search players by username..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-blue-500 font-mono"
+                placeholder="search players by username..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-white placeholder-neutral-500 text-base focus:outline-none focus:border-neutral-500 font-['Patrick_Hand']"
               />
             </div>
 
-            {viewedPlayer && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-2xl bg-neutral-950 border border-blue-900/60 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <SkinRenderer skinId={viewedPlayer.active_skin} size={50} />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-white font-['Russo_One'] text-lg leading-none">
-                          {viewedPlayer.username}
-                        </h4>
-                        {isMisioriUser(viewedPlayer.username, viewedPlayer.email) && (
-                          <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
-                            <CheckCircle2 className="w-4 h-4 fill-sky-400 text-neutral-950 inline-block shrink-0" />
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs font-mono text-blue-400 mt-0.5">
-                        {getSkinById(viewedPlayer.active_skin).name}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setViewedPlayer(null)}
-                    className="text-xs font-mono text-neutral-400 hover:text-white px-2 py-1 bg-neutral-800 rounded-lg cursor-pointer"
-                  >
-                    Back to Results
-                  </button>
-                </div>
-
-                <div className="pt-2 border-t border-neutral-800">
-                  <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
-                    <span>chambers beaten</span>
-                    <span>
-                      {
-                        LEVELS.filter((l) => {
-                          const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
-                          return (
-                            beatenSet.has(l.id) ||
-                            (viewedPlayer.level_progress?.[l.id] || 0) >= 100
-                          );
-                        }).length
-                      }{' '}
-                      / 23
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {difficulties.map((diff) => {
-                      const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
-                      const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
-                      const beaten = lvlsInDiff.filter(
-                        (l) =>
-                          beatenSet.has(l.id) ||
-                          (viewedPlayer.level_progress?.[l.id] || 0) >= 100
-                      ).length;
-                      return (
-                        <div
-                          key={diff}
-                          className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-between"
-                        >
-                          <div
-                            className="text-xs font-['Patrick_Hand'] lowercase"
-                            style={{ color: DIFFICULTY_COLORS[diff] || '#3b82f6' }}
-                          >
-                            {diff.toLowerCase()}
-                          </div>
-                          <div className="text-xs font-['Patrick_Hand'] font-bold text-white">
-                            {beaten} <span className="text-neutral-500">/ {lvlsInDiff.length}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-            )}
+            {viewedPlayer && renderViewedPlayerCard()}
 
             {!viewedPlayer && (
               <div className="space-y-2">
                 {searching && (
-                  <div className="text-center py-6 text-xs font-mono text-neutral-500">
-                    Searching colony archives...
+                  <div className="text-center py-6 text-sm font-['Patrick_Hand'] text-neutral-500 lowercase">
+                    searching colony archives...
                   </div>
                 )}
 
                 {!searching && searchQuery && searchResults.length === 0 && (
-                  <div className="text-center py-8 text-neutral-500 text-xs font-mono">
-                    No players found matching "{searchQuery}".
+                  <div className="text-center py-8 text-neutral-500 text-sm font-['Patrick_Hand'] lowercase">
+                    no players found matching "{searchQuery}".
                   </div>
                 )}
 
                 {!searching && !searchQuery && (
-                  <div className="text-center py-8 text-neutral-500 text-xs font-mono">
-                    Type a player's username above to view their avatar and chamber progress.
+                  <div className="text-center py-8 text-neutral-500 text-sm font-['Patrick_Hand'] lowercase">
+                    type a player's username above to view their avatar and chamber progress.
                   </div>
                 )}
 
                 {searchResults.map((player) => {
-                  const skin = getSkinById(player.active_skin);
-                  const playerPts = Object.values(player.high_scores || {}).reduce(
-                    (a, b) => a + (Number(b) || 0),
-                    0
-                  );
+                  const playerPts =
+                    Object.values(player.high_scores || {}).reduce(
+                      (a, b) => a + (Number(b) || 0),
+                      0
+                    ) + (player.bonus_pts || 0);
                   return (
                     <div
                       key={player.id}
                       onClick={() => {
                         sound.playClick();
+                        setShowSkinInViewedProfile(false);
                         setViewedPlayer(player);
                       }}
                       className="p-3 rounded-2xl bg-neutral-950/60 hover:bg-neutral-800/60 border border-neutral-800 hover:border-neutral-700 flex items-center justify-between transition-all cursor-pointer"
@@ -1163,13 +1094,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           <img
                             src={player.avatar_url}
                             alt="Avatar"
-                            className="w-10 h-10 rounded-xl object-cover border border-blue-500/50"
+                            className="w-10 h-10 rounded-xl object-cover border border-neutral-700"
                           />
                         ) : (
                           <SkinRenderer skinId={player.active_skin} size={38} />
                         )}
                         <div>
-                          <div className="font-bold text-sm text-white flex items-center gap-1.5">
+                          <div className="font-bold text-base font-['Patrick_Hand'] text-white flex items-center gap-1.5">
                             <span className="leading-none">{player.username}</span>
                             {isMisioriUser(player.username, player.email) && (
                               <span className="inline-flex items-center justify-center self-center" title="Verified @misiori">
@@ -1177,14 +1108,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="text-xs font-mono" style={{ color: skin.color }}>
-                            {skin.name}
-                          </div>
                         </div>
                       </div>
 
-                      <div className="text-xs font-mono text-blue-400 font-bold">
-                        {playerPts.toLocaleString()} PTS
+                      <div className="text-lg font-bold font-['Patrick_Hand'] text-neutral-200">
+                        {playerPts.toLocaleString()}
                       </div>
                     </div>
                   );

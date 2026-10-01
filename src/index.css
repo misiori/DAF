@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+@layer utilities {
+  .font-hand {
+    font-family: 'Patrick Hand', 'Caveat', 'Kalam', cursive !important;
+  }
+  .font-caveat {
+    font-family: 'Caveat', cursive !important;
+  }
+}
+
 @layer base {
   html, body, #root {
     width: 100%;
