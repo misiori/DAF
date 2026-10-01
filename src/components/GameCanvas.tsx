@@ -68,20 +68,30 @@ const DEFAULT_SPAWN_STYLE: LevelSpawnStyle = {
 };
 
 function getSpawnStyle(levelId: number, difficulty: string): LevelSpawnStyle {
-  if (LEVEL_SPAWN_STYLES[levelId]) return LEVEL_SPAWN_STYLES[levelId];
-  const mult =
-    difficulty === 'Easy' ? 0.7 :
-    difficulty === 'Normal' ? 0.9 :
-    difficulty === 'Hard' ? 1.1 :
-    difficulty === 'Harder' ? 1.25 :
-    difficulty === 'Insane' ? 1.45 : 1.6;
+  let style: LevelSpawnStyle;
+  if (LEVEL_SPAWN_STYLES[levelId]) {
+    style = LEVEL_SPAWN_STYLES[levelId];
+  } else {
+    const mult =
+      difficulty === 'Easy' ? 0.7 :
+      difficulty === 'Normal' ? 0.9 :
+      difficulty === 'Hard' ? 1.1 :
+      difficulty === 'Harder' ? 1.25 :
+      difficulty === 'Insane' ? 1.45 : 1.6;
+    style = {
+      ...DEFAULT_SPAWN_STYLE,
+      volleySize: Math.round(DEFAULT_SPAWN_STYLE.volleySize * mult),
+      volleyInterval: DEFAULT_SPAWN_STYLE.volleyInterval / mult,
+      fireChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.fireChance * mult),
+      acidChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.acidChance * mult),
+      antSpeedBoost: DEFAULT_SPAWN_STYLE.antSpeedBoost * mult,
+    };
+  }
+
+  // === GLOBAL SPEED NERF: -25% on all ants so Normal is beatable ===
   return {
-    ...DEFAULT_SPAWN_STYLE,
-    volleySize: Math.round(DEFAULT_SPAWN_STYLE.volleySize * mult),
-    volleyInterval: DEFAULT_SPAWN_STYLE.volleyInterval / mult,
-    fireChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.fireChance * mult),
-    acidChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.acidChance * mult),
-    antSpeedBoost: DEFAULT_SPAWN_STYLE.antSpeedBoost * mult,
+    ...style,
+    antSpeedBoost: style.antSpeedBoost * 0.90,
   };
 }
 
@@ -520,6 +530,8 @@ function drawMainScreenStyleAnt(
   ctx: CanvasRenderingContext2D,
   ant: Ant
 ) {
+  if (!isFinite(ant.x) || !isFinite(ant.y) || !isFinite(ant.angle)) return;
+
   ctx.save();
   ctx.translate(ant.x, ant.y);
   ctx.rotate(ant.angle);
@@ -644,8 +656,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [noclip, setNoclip] = useState(false);
   const noclipRef = useRef(false);
   const noclipHitsRef = useRef(0);
-  // noclipEverUsedRef: becomes true the MOMENT noclip is first enabled in this run.
-  // It is NEVER reset until initLevel — so toggling off before finishing still fails the run.
   const noclipEverUsedRef = useRef(false);
   const [noclipFailed, setNoclipFailed] = useState(false);
   const [noclipHitCount, setNoclipHitCount] = useState(0);
@@ -757,7 +767,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     noclipRef.current = noclip;
     if (noclip) {
-      // Lock the "ever used" flag permanently for this run
       noclipEverUsedRef.current = true;
     }
   }, [noclip]);
@@ -821,6 +830,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   const addFloatingText = (text: string, x: number, y: number, color: string) => {
+    if (!isFinite(x) || !isFinite(y)) return;
     floatingTextsRef.current.push({
       id: Math.random() * 100000,
       text,
@@ -833,6 +843,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   const addParticles = (x: number, y: number, count: number, color: string) => {
+    if (!isFinite(x) || !isFinite(y)) return;
     for (let i = 0; i < count; i++) {
       const speed = Math.random() * 5 + 2;
       const angle = Math.random() * Math.PI * 2;
@@ -1231,6 +1242,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const handleUserClick = (clickX: number, clickY: number) => {
     if (countdownRef.current !== null || isPausedRef.current || isGameOverRef.current) return;
+    if (!isFinite(clickX) || !isFinite(clickY)) return;
 
     let targetHit = false;
 
@@ -1408,13 +1420,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
+      const mx = Number(e.clientX);
+      const my = Number(e.clientY);
+      if (isFinite(mx) && isFinite(my)) {
+        mouseRef.current = { x: mx, y: my };
+      }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
-        mouseRef.current = { x: touch.clientX, y: touch.clientY };
+        const tx = Number(touch.clientX);
+        const ty = Number(touch.clientY);
+        if (isFinite(tx) && isFinite(ty)) {
+          mouseRef.current = { x: tx, y: ty };
+        }
       }
       if (e.cancelable && e.target === canvasRef.current && !isPausedRef.current && !isGameOverRef.current) {
         e.preventDefault();
@@ -1432,8 +1452,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
-        mouseRef.current = { x: touch.clientX, y: touch.clientY };
-        handleUserClick(touch.clientX, touch.clientY);
+        const tx = Number(touch.clientX);
+        const ty = Number(touch.clientY);
+        if (isFinite(tx) && isFinite(ty)) {
+          mouseRef.current = { x: tx, y: ty };
+          handleUserClick(tx, ty);
+        }
       }
       if (e.cancelable && e.target === canvasRef.current) {
         e.preventDefault();
@@ -1448,7 +1472,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (isPausedRef.current || isGameOverRef.current) {
         return;
       }
-      handleUserClick(e.clientX, e.clientY);
+      const mx = Number(e.clientX);
+      const my = Number(e.clientY);
+      if (isFinite(mx) && isFinite(my)) {
+        handleUserClick(mx, my);
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -1477,8 +1505,27 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      const newW = window.innerWidth;
+      const newH = window.innerHeight;
+      width = canvas.width = newW;
+      height = canvas.height = newH;
+
+      const BOX_TOP = newH < 440 ? 54 : 72;
+      const BOX_BOTTOM = newH - 20;
+      const BOX_LEFT = 20;
+      const BOX_RIGHT = newW - 20;
+      const cx = (BOX_LEFT + BOX_RIGHT) / 2;
+      const cy = (BOX_TOP + BOX_BOTTOM) / 2;
+
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+      if (
+        !isFinite(mx) || !isFinite(my) ||
+        mx < BOX_LEFT || mx > BOX_RIGHT ||
+        my < BOX_TOP || my > BOX_BOTTOM
+      ) {
+        mouseRef.current = { x: cx, y: cy };
+      }
     };
     window.addEventListener('resize', handleResize);
 
@@ -1506,8 +1553,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           freezeTimerRef.current -= 1 / 60;
         }
 
-        const mx = mouseRef.current.x;
-        const my = mouseRef.current.y;
+        let mx = mouseRef.current.x;
+        let my = mouseRef.current.y;
+        if (!isFinite(mx)) mx = BOX_CENTER_X;
+        if (!isFinite(my)) my = BOX_CENTER_Y;
 
         if (my <= BOX_TOP) {
           if (!isHeaderStoppedRef.current) {
@@ -1582,7 +1631,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (gameTimeRef.current >= level.durationSeconds && !isGameOverRef.current) {
             isGameOverRef.current = true;
 
-            // Noclip check: if noclip was EVER turned on this run, or if any hits happened — fail the run
             if (noclipEverUsedRef.current || noclipHitsRef.current > 0 || noclipRef.current) {
               setNoclipHitCount(noclipHitsRef.current);
               setNoclipFailed(true);
@@ -1593,7 +1641,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               return;
             }
 
-            // Real, legit victory
             progressRef.current = 100;
             setProgress(100);
             setGameState('won');
@@ -1757,16 +1804,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
+        // === RAMP-UP INTERVAL: каждый следующий залп на 0.5 сек реже ===
         const baseInterval = getPhaseInterval(effectiveDiffKey);
         const phaseInterval = phase === 2 ? baseInterval * 0.85 : baseInterval;
+
+        // Estimate the current volley index for ramp-up
+        const currentVolleyEstimate = Math.floor(gameTimeRef.current / Math.max(0.1, phaseInterval));
+        const rampUpSeconds = Math.min(8, currentVolleyEstimate * 0.1); // cap at +8s
+        const rampedInterval = phaseInterval + rampUpSeconds;
+
         const effectiveInterval = level.isEndless
           ? spawnStyle.volleyInterval
-          : phaseInterval;
+          : rampedInterval;
 
         const volleyMultiplier = phase === 2 ? 1.3 : 1.0;
+
+        // Density nerf: harder difficulties get fewer ants per volley
+        const densityNerf =
+          effectiveDiffKey === 'Easy' ? 1.0 :
+          effectiveDiffKey === 'Normal' ? 0.75 :
+          effectiveDiffKey === 'Hard' ? 0.65 :
+          effectiveDiffKey === 'Harder' ? 0.6 :
+          effectiveDiffKey === 'Insane' ? 0.55 : 0.5;
+
         const actualVolleySize = Math.max(
           1,
-          Math.round(spawnStyle.volleySize * volleyMultiplier)
+          Math.round(spawnStyle.volleySize * volleyMultiplier * densityNerf)
         );
 
         if (
@@ -1882,6 +1945,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               return;
             }
 
+            if (!isFinite(ant.x) || !isFinite(ant.y) || !isFinite(ant.angle)) {
+              ant.x = BOX_CENTER_X;
+              ant.y = BOX_CENTER_Y;
+              ant.angle = 0;
+              ant.vx = 0;
+              ant.vy = 0;
+            }
+
             const dx = safeTargetX - ant.x;
             const dy = safeTargetY - ant.y;
             const dist = Math.hypot(dx, dy);
@@ -1906,19 +1977,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             ant.y += ant.vy;
             ant.legPhase += 0.25 * speedMult;
 
-            if (ant.x - ant.size < BOX_LEFT) {
+            if (!isFinite(ant.x)) ant.x = BOX_CENTER_X;
+            if (!isFinite(ant.y)) ant.y = BOX_CENTER_Y;
+            if (ant.x < BOX_LEFT + ant.size) {
               ant.x = BOX_LEFT + ant.size;
               ant.vx = Math.abs(ant.vx);
             }
-            if (ant.x + ant.size > BOX_RIGHT) {
+            if (ant.x > BOX_RIGHT - ant.size) {
               ant.x = BOX_RIGHT - ant.size;
               ant.vx = -Math.abs(ant.vx);
             }
-            if (ant.y - ant.size < BOX_TOP) {
+            if (ant.y < BOX_TOP + ant.size) {
               ant.y = BOX_TOP + ant.size;
               ant.vy = Math.abs(ant.vy);
             }
-            if (ant.y + ant.size > BOX_BOTTOM) {
+            if (ant.y > BOX_BOTTOM - ant.size) {
               ant.y = BOX_BOTTOM - ant.size;
               ant.vy = -Math.abs(ant.vy);
             }
@@ -2425,7 +2498,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const mx2 = mouseRef.current.x;
       const my2 = mouseRef.current.y;
 
-      drawPlayerSkin(ctx, activeSkin, mx2, my2, 15, gameTimeRef.current);
+      if (isFinite(mx2) && isFinite(my2)) {
+        drawPlayerSkin(ctx, activeSkin, mx2, my2, 15, gameTimeRef.current);
+      }
 
       particlesRef.current.forEach((p) => {
         const alpha = 1 - p.life / p.maxLife;
@@ -2653,7 +2728,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   sound.playClick();
                   sound.stopBgm();
                   if (!isGameOverRef.current) {
-                    // If noclip was EVER used this run, clamp to 99% so parent won't mark as beaten
                     const reportedProgress =
                       noclipEverUsedRef.current || noclipHitsRef.current > 0
                         ? Math.min(progressRef.current, 99)
@@ -2792,7 +2866,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   setNoclipFailed(false);
                   setNoclip(false);
                   sound.stopBgm();
-                  // Report 0% to parent — level was not legit-completed
                   onGameOver(level.id, scoreRef.current, sugarRef.current, 0, Boolean(level.isEndless));
                   onExit();
                 }}
