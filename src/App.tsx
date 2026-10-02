@@ -34,6 +34,33 @@ export default function App() {
   const [profileTargetUsername, setProfileTargetUsername] = useState<string | undefined>(undefined);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+    // === DISCORD RICH PRESENCE ===
+  // Idle в меню, Playing (level name) когда играешь
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const api = (window as any).electronAPI;
+    if (!api || typeof api.updateDiscordPresence !== 'function') return;
+
+    const inMenu = view === 'intro' || view === 'menu' || view === 'level_select';
+
+    if (inMenu) {
+      api.updateDiscordPresence({
+        details: 'Idle',
+        state: 'in the menu',
+        startTimestamp: Date.now(),
+        largeImageKey: 'logo',
+        largeImageText: 'Dangerous Ant Farm',
+      });
+    } else if (view === 'game' && selectedLevel) {
+      api.updateDiscordPresence({
+        details: `Playing: ${selectedLevel.name}`,
+        state: `${selectedLevel.difficulty} • ${selectedLevel.isEndless ? 'endless' : `#${selectedLevel.id}`}`,
+        startTimestamp: Date.now(),
+        largeImageKey: 'logo',
+        largeImageText: 'Dangerous Ant Farm',
+      });
+    }
+  }, [view, selectedLevel]);
 
   // Start or stop menu BGM based on view
   useEffect(() => {
