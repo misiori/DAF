@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IntroScreen } from './components/IntroScreen';
 import { MainMenu } from './components/MainMenu';
-import { LevelSelect } from './components/LevelSelect';
+import { ChambersMenu } from './components/ChambersMenu';
 import { GameCanvas } from './components/GameCanvas';
 import { SkinsModal } from './components/SkinsModal';
 import { ProfileModal } from './components/ProfileModal';
@@ -10,6 +10,7 @@ import { DailyChallengesModal } from './components/DailyChallengesModal';
 import { OrientationGuard } from './components/OrientationGuard';
 import { PlayerProfile, LevelConfig } from './types/game';
 import { ChallengeEvent, recordChallengeEvent } from './lib/dailyChallenges';
+import { customLevelToLevelConfig } from './lib/customLevels';
 import {
   getGuestProfile,
   saveGuestProfile,
@@ -30,6 +31,7 @@ export default function App() {
   // Modals
   const [showSkins, setShowSkins] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [profileTargetUsername, setProfileTargetUsername] = useState<string | undefined>(undefined);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -368,13 +370,17 @@ export default function App() {
             transition={{ duration: 0.35 }}
             className="w-full h-full"
           >
-            <LevelSelect
+            <ChambersMenu
               profile={profile}
               onSelectLevel={(lvl) => {
                 setSelectedLevel(lvl);
                 setView('game');
               }}
               onBack={() => setView('menu')}
+              onOpenProfile={(username) => {
+                setProfileTargetUsername(username);
+                setShowProfile(true);
+              }}
             />
           </motion.div>
         )}
@@ -416,8 +422,18 @@ export default function App() {
         {showProfile && (
           <ProfileModal
             currentProfile={profile}
+            initialViewedUsername={profileTargetUsername}
             onProfileUpdated={handleUpdateProfile}
-            onClose={() => setShowProfile(false)}
+            onPlayCustomLevel={(customLvl) => {
+              setShowProfile(false);
+              setProfileTargetUsername(undefined);
+              setSelectedLevel(customLevelToLevelConfig(customLvl));
+              setView('game');
+            }}
+            onClose={() => {
+              setShowProfile(false);
+              setProfileTargetUsername(undefined);
+            }}
           />
         )}
 

@@ -19,6 +19,11 @@ import {
   CheckCircle2,
   Trash2,
   Edit2,
+  Compass,
+  Play,
+  Bookmark,
+  BookmarkCheck,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   supabase,
@@ -32,6 +37,14 @@ import {
   saveGuestProfile,
 } from '../lib/supabase';
 import { PlayerProfile } from '../types/game';
+import {
+  CustomLevel,
+  fetchLevelsByCreator,
+  getSavedChamberIds,
+  toggleSaveChamber,
+  getCustomLevelProgress,
+  getCustomLevelHighScore,
+} from '../lib/customLevels';
 import { SkinRenderer, getSkinById } from './SkinRenderer';
 import { LEVELS, DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
@@ -44,16 +57,28 @@ const isMisioriUser = (username?: string, email?: string) => {
 interface ProfileModalProps {
   currentProfile: PlayerProfile;
   onProfileUpdated: (updated: PlayerProfile) => void;
+  onPlayCustomLevel?: (level: CustomLevel) => void;
   onClose: () => void;
+  initialViewedUsername?: string;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   currentProfile,
   onProfileUpdated,
+  onPlayCustomLevel,
   onClose,
+  initialViewedUsername,
 }) => {
   const [tab, setTab] = useState<'profile' | 'leaderboard' | 'search'>('profile');
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+
+  // Player levels sub-view state
+  const [viewingPlayerLevels, setViewingPlayerLevels] = useState<{
+    username: string;
+    levels: CustomLevel[];
+    loading: boolean;
+  } | null>(null);
+  const [savedChamberIds, setSavedChamberIds] = useState<string[]>(getSavedChamberIds());
 
   // Auth Form State
   const [usernameInput, setUsernameInput] = useState('');
@@ -69,6 +94,42 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searching, setSearching] = useState(false);
   const [viewedPlayer, setViewedPlayer] = useState<PlayerProfile | null>(null);
   const [showSkinInViewedProfile, setShowSkinInViewedProfile] = useState(false);
+
+  // Auto load profile if initialViewedUsername passed
+  useEffect(() => {
+    if (initialViewedUsername) {
+      const cleanTarget = initialViewedUsername.trim().toLowerCase().replace(/^@/, '');
+      if (cleanTarget === currentProfile.username.toLowerCase().replace(/^@/, '')) {
+        setTab('profile');
+        setViewedPlayer(null);
+      } else {
+        setTab('search');
+        setSearching(true);
+        searchProfiles(cleanTarget).then((results) => {
+          setSearching(false);
+          const match = results.find(
+            (p) => p.username.toLowerCase().replace(/^@/, '') === cleanTarget
+          );
+          if (match) {
+            setViewedPlayer(match);
+          } else if (results.length > 0) {
+            setViewedPlayer(results[0]);
+          } else {
+            setViewedPlayer({
+              id: 'creator_' + cleanTarget,
+              username: initialViewedUsername,
+              active_skin: 'amber',
+              unlocked_skins: ['amber'],
+              sugar_cubes: 0,
+              high_scores: {},
+              beaten_levels: [],
+              level_progress: {},
+            });
+          }
+        });
+      }
+    }
+  }, [initialViewedUsername]);
 
   // Leaderboard State
   const [leaderboard, setLeaderboard] = useState<
@@ -488,7 +549,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         <div className="pt-2 border-t border-neutral-800">
           <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
             <span>chambers beaten</span>
-            <span>
+            <span className="text-sm font-['Patrick_Hand'] font-bold text-white">
               {
                 LEVELS.filter((l) => {
                   const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
@@ -497,8 +558,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     (viewedPlayer.level_progress?.[l.id] || 0) >= 100
                   );
                 }).length
-              }{' '}
-              / 23
+              }
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -521,13 +581,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   >
                     {diff.toLowerCase()}
                   </div>
-                  <div className="text-xs font-['Patrick_Hand'] font-bold text-white">
-                    {beaten} <span className="text-neutral-500">/ {lvlsInDiff.length}</span>
+                  <div className="text-sm font-['Patrick_Hand'] font-bold text-white">
+                    {beaten}
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Levels button to view and save their custom chambers */}
+          <button
+            onClick={async () => {
+              sound.playClick();
+              setViewingPlayerLevels({
+                username: viewedPlayer.username,
+                levels: [],
+                loading: true,
+              });
+              const lvls = await fetchLevelsByCreator(viewedPlayer.username);
+              setViewingPlayerLevels({
+                username: viewedPlayer.username,
+                levels: lvls,
+                loading: false,
+              });
+            }}
+            className="w-full mt-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-700/80 text-neutral-200 hover:text-white font-['Patrick_Hand'] text-sm lowercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <Compass className="w-4 h-4 text-cyan-400" />
+            <span>view levels by {viewedPlayer.username}</span>
+          </button>
         </div>
       </motion.div>
     );
@@ -572,8 +654,119 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Navigation: profile, leaderboard, search */}
-        <div className="flex items-center gap-2 mt-3 p-1 bg-neutral-950/80 rounded-2xl border border-neutral-800">
+        {viewingPlayerLevels ? (
+          <div className="flex-1 min-h-0 flex flex-col pt-3 overflow-hidden">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-800 shrink-0">
+              <button
+                onClick={() => setViewingPlayerLevels(null)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-300 font-['Patrick_Hand'] text-sm lowercase hover:text-white cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-neutral-400" />
+                <span>back</span>
+              </button>
+              <h3 className="font-['Caveat'] text-2xl text-white lowercase">
+                chambers by {viewingPlayerLevels.username}
+              </h3>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-2.5 pr-1">
+              {viewingPlayerLevels.loading ? (
+                <div className="h-40 flex items-center justify-center font-['Patrick_Hand'] text-neutral-500 lowercase">
+                  loading chambers...
+                </div>
+              ) : viewingPlayerLevels.levels.length === 0 ? (
+                <div className="h-40 flex flex-col items-center justify-center text-center p-4">
+                  <p className="font-['Caveat'] text-2xl text-neutral-400 lowercase">
+                    no chambers published yet
+                  </p>
+                </div>
+              ) : (
+                viewingPlayerLevels.levels.map((lvl) => {
+                  const isSaved = savedChamberIds.includes(lvl.id);
+                  const diffColor =
+                    lvl.difficulty === 'Unrated'
+                      ? '#94a3b8'
+                      : DIFFICULTY_COLORS[lvl.difficulty as any] || '#38bdf8';
+                  const progress = getCustomLevelProgress(currentProfile, lvl);
+                  const highScore = getCustomLevelHighScore(currentProfile, lvl);
+                  const isBeaten = progress >= 100;
+
+                  return (
+                    <div
+                      key={lvl.id}
+                      className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800/80 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-['Caveat'] text-2xl text-white truncate lowercase">
+                            {lvl.name}
+                          </h4>
+                          <span
+                            className="text-[11px] font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: diffColor,
+                              borderColor: `${diffColor}40`,
+                              backgroundColor: `${diffColor}15`,
+                            }}
+                          >
+                            {lvl.difficulty.toLowerCase()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs font-['Patrick_Hand'] lowercase pt-0.5">
+                          <span className={isBeaten ? 'text-emerald-400 font-bold' : 'text-neutral-400'}>
+                            {isBeaten ? '100%' : `${progress}%`}
+                          </span>
+                          <span className="text-neutral-400">
+                            best: {highScore.toLocaleString()} pts
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {onPlayCustomLevel && (
+                          <button
+                            onClick={() => {
+                              sound.playClick();
+                              onClose();
+                              onPlayCustomLevel(lvl);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-sm font-bold flex items-center gap-1 cursor-pointer shadow hover:scale-105 transition-all"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-neutral-950" />
+                            <span>play</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            sound.playClick();
+                            toggleSaveChamber(lvl.id);
+                            setSavedChamberIds(getSavedChamberIds());
+                          }}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                            isSaved
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                              : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
+                          }`}
+                          title={isSaved ? 'saved to chambers' : 'save to chambers'}
+                        >
+                          {isSaved ? (
+                            <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                          ) : (
+                            <Bookmark className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tab Navigation: profile, leaderboard, search */}
+            <div className="flex items-center gap-2 mt-3 p-1 bg-neutral-950/80 rounded-2xl border border-neutral-800">
           <button
             onClick={() => {
               sound.playClick();
@@ -783,19 +976,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-['Patrick_Hand'] text-base text-neutral-300 lowercase">
-                  chambers
+                  chambers beaten
                 </div>
-                <div className="font-['Patrick_Hand'] text-sm text-neutral-400 lowercase">
-                  total: {totalChambersBeaten} / 23
+                <div className="font-['Patrick_Hand'] text-sm text-white font-bold lowercase">
+                  quantity: {totalChambersBeaten}
                 </div>
-              </div>
-
-              {/* Overall Progress Bar */}
-              <div className="w-full bg-neutral-950 h-1.5 rounded-full border border-neutral-800 mb-3 overflow-hidden">
-                <div
-                  className="h-full bg-neutral-300 transition-all duration-300 rounded-full"
-                  style={{ width: `${(totalChambersBeaten / 23) * 100}%` }}
-                />
               </div>
 
               {/* Difficulty Breakdown Grid */}
@@ -809,18 +994,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <div className="text-xs font-['Patrick_Hand'] lowercase" style={{ color: stat.color }}>
                         {stat.difficulty.toLowerCase()}
                       </div>
-                      <div className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase">
-                        {stat.beaten >= stat.total ? 'completed' : 'in progress'}
-                      </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-['Patrick_Hand'] text-white">
-                        {stat.beaten} <span className="text-neutral-500">/ {stat.total}</span>
+                      <span className="text-sm font-['Patrick_Hand'] text-white font-bold">
+                        {stat.beaten}
                       </span>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* View created chambers button */}
+              <button
+                onClick={async () => {
+                  sound.playClick();
+                  setViewingPlayerLevels({
+                    username: currentProfile.username,
+                    levels: [],
+                    loading: true,
+                  });
+                  const lvls = await fetchLevelsByCreator(currentProfile.username);
+                  setViewingPlayerLevels({
+                    username: currentProfile.username,
+                    levels: lvls,
+                    loading: false,
+                  });
+                }}
+                className="w-full mt-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-sm lowercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <Compass className="w-4 h-4 text-cyan-400" />
+                <span>view ur published chambers</span>
+              </button>
             </div>
 
             {/* Sign in / Sign Up Form for Guests */}
@@ -1120,6 +1324,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </motion.div>
     </div>

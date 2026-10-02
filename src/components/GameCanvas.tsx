@@ -18,6 +18,7 @@ import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
+import { saveDraftLevel, getLocalUserDrafts } from '../lib/customLevels';
 
 // === HANDWRITTEN FONT CONSTANTS ===
 const HAND_FONT = "'Patrick_Hand', cursive";
@@ -133,6 +134,7 @@ interface GameCanvasProps {
   onVictory: (levelId: number, score: number, sugarEarned: number, difficulty: string, isEndless?: boolean) => void;
   onExit: () => void;
   onProgressDailyChallenge?: (event: ChallengeEvent) => void;
+  onLevelVerified?: (customLevelId: string) => void;
 }
 
 interface Shockwave {
@@ -166,12 +168,14 @@ function drawHandDrawnAnthill(
   ctx: CanvasRenderingContext2D,
   hill: Anthill,
   beatPulse: number,
-  isDestroyed: boolean
+  isDestroyed: boolean,
+  themeColor?: string
 ) {
   const x = hill.x;
   const y = hill.y;
   const r = hill.radius;
   const hp = hill.hp ?? 3;
+  const mainColor = themeColor || '#ffffff';
 
   ctx.save();
   ctx.translate(x, y);
@@ -200,7 +204,7 @@ function drawHandDrawnAnthill(
 
   const pulseWobble = Math.sin(hill.pulse * 2.5) * 1.5;
 
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = mainColor;
   ctx.lineWidth = 1.8;
   ctx.beginPath();
   const segments = 24;
@@ -221,7 +225,7 @@ function drawHandDrawnAnthill(
   for (let ring = 1; ring <= 3; ring++) {
     const ringR = r * (0.35 + (ring / 3) * 0.48);
     ctx.beginPath();
-    ctx.strokeStyle = ring === 3 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.3)';
+    ctx.strokeStyle = ring === 3 ? `${mainColor}80` : `${mainColor}4d`;
     ctx.lineWidth = 1.2;
     for (let s = 0; s <= segments; s++) {
       const a = (s / segments) * Math.PI * 2;
@@ -239,13 +243,13 @@ function drawHandDrawnAnthill(
   const rippleDistance = (r - craterR);
   const rippleFrac = (hill.pulse * 0.4) % 1;
   const rippleR = craterR + rippleDistance * rippleFrac;
-  ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 * (1 - rippleFrac)})`;
+  ctx.strokeStyle = `${mainColor}66`;
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   ctx.arc(0, 0, rippleR, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+  ctx.fillStyle = `${mainColor}aa`;
   for (let s = 0; s < 12; s++) {
     const sAngle = (s * 0.52) + hill.id;
     const sDist = r * (0.45 + (s % 4) * 0.12);
@@ -258,7 +262,7 @@ function drawHandDrawnAnthill(
   ctx.beginPath();
   ctx.arc(0, 0, craterR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = mainColor;
   ctx.lineWidth = 2.0;
   ctx.stroke();
 
@@ -295,7 +299,7 @@ function drawHandDrawnAnthill(
     }
   }
 
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = mainColor;
   ctx.font = HAND_BOLD_MD;
   ctx.textAlign = 'center';
   ctx.fillText(`click ${hp}`, 0, -r - 8);
@@ -612,6 +616,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onVictory,
   onExit,
   onProgressDailyChallenge,
+  onLevelVerified,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -908,8 +913,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const boxH = boxBottom - boxTop;
     const hills: Anthill[] = [];
     const count = level.spawnerCount;
+    const customData = (level as any).customData;
 
-    if (level.id === 1 || level.id === 2) {
+    if (customData?.anthills && customData.anthills.length > 0) {
+      customData.anthills.forEach((p: any, idx: number) => {
+        hills.push({
+          id: idx + 1,
+          x: boxLeft + p.xFrac * boxW,
+          y: boxTop + p.yFrac * boxH,
+          radius: 19,
+          baseRadius: 19,
+          pulse: 0,
+          spawnCooldown: 18 + Math.random() * 20,
+          maxSpawnCooldown: 36,
+          type: p.type || 'standard',
+          hp: p.hp || 3,
+          maxHp: p.hp || 3,
+          destroyedTime: 0,
+        });
+      });
+    } else if (level.id === 1 || level.id === 2) {
       const xOffsets = [-boxW * 0.28, boxW * 0.28];
       for (let i = 0; i < 2; i++) {
         hills.push({
@@ -1102,40 +1125,63 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const bossHealth = 6;
     const bossSpeed = 1.6;
 
-    initialAnts.push(
-      {
-        id: 9001,
-        x: boxCenterX - (boxRight - boxLeft) * 0.25,
-        y: boxCenterY - (boxBottom - boxTop) * 0.2,
-        vx: 0,
-        vy: 0,
-        speed: bossSpeed,
-        size: bossBaseSize,
-        type: 'worker',
-        angle: 0,
-        legPhase: 0,
-        health: bossHealth,
-        isBigAnt: false,
-        // @ts-ignore
-        isBoss: true,
-      } as Ant,
-      {
-        id: 9002,
-        x: boxCenterX + (boxRight - boxLeft) * 0.25,
-        y: boxCenterY + (boxBottom - boxTop) * 0.2,
-        vx: 0,
-        vy: 0,
-        speed: bossSpeed,
-        size: bossBaseSize,
-        type: 'worker',
-        angle: Math.PI,
-        legPhase: 3.14,
-        health: bossHealth,
-        isBigAnt: false,
-        // @ts-ignore
-        isBoss: true,
-      } as Ant
-    );
+    if (customData?.bossCount !== undefined) {
+      for (let b = 0; b < customData.bossCount; b++) {
+        const ang = (b / Math.max(1, customData.bossCount)) * Math.PI * 2;
+        const rad = Math.min(boxW, boxH) * 0.28;
+        initialAnts.push({
+          id: 9001 + b,
+          x: boxCenterX + Math.cos(ang) * rad,
+          y: boxCenterY + Math.sin(ang) * rad,
+          vx: 0,
+          vy: 0,
+          speed: bossSpeed,
+          size: bossBaseSize,
+          type: 'worker',
+          angle: ang,
+          legPhase: b * 1.5,
+          health: bossHealth,
+          isBigAnt: false,
+          // @ts-ignore
+          isBoss: true,
+        } as Ant);
+      }
+    } else {
+      initialAnts.push(
+        {
+          id: 9001,
+          x: boxCenterX - (boxRight - boxLeft) * 0.25,
+          y: boxCenterY - (boxBottom - boxTop) * 0.2,
+          vx: 0,
+          vy: 0,
+          speed: bossSpeed,
+          size: bossBaseSize,
+          type: 'worker',
+          angle: 0,
+          legPhase: 0,
+          health: bossHealth,
+          isBigAnt: false,
+          // @ts-ignore
+          isBoss: true,
+        } as Ant,
+        {
+          id: 9002,
+          x: boxCenterX + (boxRight - boxLeft) * 0.25,
+          y: boxCenterY + (boxBottom - boxTop) * 0.2,
+          vx: 0,
+          vy: 0,
+          speed: bossSpeed,
+          size: bossBaseSize,
+          type: 'worker',
+          angle: Math.PI,
+          legPhase: 3.14,
+          health: bossHealth,
+          isBigAnt: false,
+          // @ts-ignore
+          isBoss: true,
+        } as Ant
+      );
+    }
 
     antsRef.current = initialAnts;
     portalsRef.current = [];
@@ -1146,6 +1192,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     shockwavesRef.current = [];
 
     const initialPods: MechanicPod[] = [];
+    if (customData?.cocoons && customData.cocoons.length > 0) {
+      customData.cocoons.forEach((c: any, idx: number) => {
+        initialPods.push({
+          id: 7000 + idx,
+          x: boxLeft + c.xFrac * boxW,
+          y: boxTop + c.yFrac * boxH,
+          radius: 26,
+          type: 'queen_cocoon',
+          pulse: 0,
+          hp: c.hp || 6,
+          maxHp: c.hp || 6,
+          label: 'cocoon',
+        });
+      });
+    }
     const mech = level.mechanicId || 'nuke_houses';
     if (mech === 'emp_pods' || mech === 'cryo_barrels') {
       initialPods.push({
@@ -1536,6 +1597,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const BOX_RIGHT = width - 20;
       const BOX_CENTER_X = (BOX_LEFT + BOX_RIGHT) / 2;
       const BOX_CENTER_Y = (BOX_TOP + BOX_BOTTOM) / 2;
+      const customData = (level as any).customData;
 
       if (clickRepulseCooldownRef.current > 0) {
         clickRepulseCooldownRef.current -= 1;
@@ -1650,6 +1712,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               spread: 80,
               origin: { y: 0.6 },
             });
+            if (customData?.id) {
+              const drafts = getLocalUserDrafts();
+              const found = drafts.find((d) => d.id === customData.id);
+              if (found) {
+                found.verified = true;
+                found.updatedAt = new Date().toISOString();
+                saveDraftLevel(found);
+              }
+              onLevelVerified?.(customData.id);
+            }
             onVictory(level.id, scoreRef.current, sugarRef.current, level.difficulty, Boolean(level.isEndless));
             return;
           }
@@ -1673,8 +1745,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             allowedSpeeds = [1.0, 1.5, 2.0];
           }
 
-          const portalRate = effectiveDiff === 'Easy' ? 0.007 : effectiveDiff === 'Normal' ? 0.004 : 0.002;
-          if (Math.random() < portalRate * speedMult && portalsRef.current.length < 2) {
+          let portalRate = effectiveDiff === 'Easy' ? 0.007 : effectiveDiff === 'Normal' ? 0.004 : 0.002;
+          if (customData?.powerUpChances?.speed !== undefined) {
+            portalRate = (customData.powerUpChances.speed / 100) * 0.008;
+          }
+          if (portalRate > 0 && Math.random() < portalRate * speedMult && portalsRef.current.length < 2) {
             const filtered = allowedSpeeds.filter((s) => s !== speedMult);
             if (filtered.length > 0) {
               const target = filtered[Math.floor(Math.random() * filtered.length)];
@@ -1726,7 +1801,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           availablePodTypes = ['emp_bomb'];
         }
 
-        if (Math.random() < podSpawnChance && mechanicPodsRef.current.length < maxPodsAllowed) {
+        if (customData?.powerUpChances) {
+          const ch = customData.powerUpChances;
+          const customPods: ('nuke_bomb' | 'emp_bomb' | 'honey_trap')[] = [];
+          if (ch.nukeBomb > 0) customPods.push('nuke_bomb');
+          if (ch.freezeBomb > 0) customPods.push('emp_bomb');
+          if (ch.honeyTraps > 0) customPods.push('honey_trap');
+          availablePodTypes = customPods;
+          const avgChance = ((ch.nukeBomb + ch.freezeBomb + ch.honeyTraps) / 300) * 0.008;
+          podSpawnChance = Math.max(0.001, avgChance);
+          maxPodsAllowed = Math.max(1, Math.min(4, Math.ceil(availablePodTypes.length * 1.2)));
+        }
+
+        if (availablePodTypes.length > 0 && Math.random() < podSpawnChance && mechanicPodsRef.current.length < maxPodsAllowed) {
           const chosen = availablePodTypes[Math.floor(Math.random() * availablePodTypes.length)];
           mechanicPodsRef.current.push({
             id: Math.random() * 100000,
@@ -2218,9 +2305,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const beatCycle = Math.sin(gameTimeRef.current * (level.bpm / 60) * Math.PI * 2);
       const beatPulse = 0.5 + 0.5 * Math.max(0, beatCycle);
 
+      const anthillThemeColor = (level as any).themeColor || (level as any).customData?.themeColor;
       anthillsRef.current.forEach((hill) => {
         const isDestroyed = Boolean(hill.destroyedTime && hill.destroyedTime > 0);
-        drawHandDrawnAnthill(ctx, hill, beatPulse, isDestroyed);
+        drawHandDrawnAnthill(ctx, hill, beatPulse, isDestroyed, anthillThemeColor);
       });
 
       mechanicPodsRef.current.forEach((pod) => {
@@ -2598,6 +2686,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             </div>
           )}
 
+          {(level as any).isVerification && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border border-amber-500/60 bg-amber-500/15 font-['Patrick_Hand'] text-xs text-amber-300 lowercase">
+              <span>verification mode • survive 100% without noclip</span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2.5 sm:gap-4">
             <div className="flex items-center gap-1">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -2895,9 +2989,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               chamber clear!
             </h2>
 
-            <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-5">
-              100% completed
-            </div>
+            {(level as any).isVerification ? (
+              <div className="text-sm font-['Patrick_Hand'] text-emerald-400 font-bold lowercase mb-4 p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40">
+                ✓ chamber verified 100%! ready to publish in library
+              </div>
+            ) : (
+              <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-5">
+                100% completed
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2.5 mb-6">
               <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">

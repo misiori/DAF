@@ -5,12 +5,28 @@ export const SUPABASE_URL = 'https://amyvyurvnnyeskzbjxpa.supabase.co';
 export const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFteXZ5dXJ2bm55ZXNremJqeHBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MDYyMjIsImV4cCI6MjEwNTk4MjIyMn0.sl7UmEBZsLilBUZTxlZu7fCYLJ5qs8Ub6lQt8S1m2SA';
 
+export const SUPABASE_SERVICE_ROLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFteXZ5dXJ2bm55ZXNremJqeHBhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDQwNjIyMiwiZXhwIjoyMTA1OTgyMjIyfQ.OErvyZ8m4Z9W1m8YGgRGahqTD8uloHV4XonPEs5l-gY';
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
   },
 });
+
+export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
+
+export const isMisioriUser = (username?: string, email?: string): boolean => {
+  const clean = (username || '').toLowerCase().trim().replace(/^@/, '');
+  const cleanEmail = (email || '').toLowerCase().trim();
+  return clean === 'misiori' || cleanEmail === 'misiori.gg@gmail.com';
+};
 
 export const SQL_SETUP_SCRIPT = `-- ===============================================================
 -- DANGEROUS ANT FARM - SUPABASE DATABASE INITIALIZATION SCRIPT
