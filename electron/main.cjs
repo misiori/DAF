@@ -1,108 +1,133 @@
 // electron/main.cjs
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const net = require('net');
 
-// --- НАЧАЛО КОДА ДЛЯ DISCORD ---
-let rpcClient = null;
-try {
-  // Пытаемся подключить встроенный клиент Discord (не требует установки)
-  // В Electron он может быть доступен через require, но лучше использовать встроенный ipc
-  // Однако для простоты мы будем использовать чистый IPC протокол Electron для Discord.
-  // Но для этого нужен клиент. Попробуем самый простой способ без внешних зависимостей:
-  // Используем нативный модуль Node.js для связи с Discord через его IPC сокет.
-  
-  // Простейший самописный клиент для Discord RPC (без библиотек)
-  const net = require('net');
-  const path = require('path');
-  
-  const DISCORD_IPC_PATH = process.platform === 'win32' 
-    ? '\\\\?\\pipe\\discord-ipc-0' 
-    : path.join(process.env.XDG_RUNTIME_DIR || '/tmp', 'discord-ipc-0');
+// ============================================================
+// DISCORD RPC — минимальный клиент без внешних зависимостей
+// ============================================================
 
-  let socket = null;
-  let isConnected = false;
+const CLIENT_ID = 1555577699723120722; // ← БЕЗ КАВЫЧЕК, это число!
 
-  function connectToDiscord(clientId) {
-    return new Promise((resolve) => {
-      socket = net.createConnection(DISCORD_IPC_PATH);
-      
-      socket.on('connect', () => {
-        isConnected = true;
-        // Отправляем рукопожатие (handshake)
-        const handshake = { v: 1, client_id: clientId };
-        sendPacket(0, handshake);
-        resolve(true);
-      });
+// Discord IPC сокет. На Linux — $XDG_RUNTIME_DIR/discord-ipc-0,
+// на Windows — named pipe, на macOS — /tmp/discord-ipc-0
+function getDiscordIpcPath() {
+  if (process.platform === 'win32') {
+    return '\\\\?\\pipe\\discord-ipc-0';
+  }
+  const base = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || '/tmp';
+  return path.join(base, 'discord-ipc-0');
+}
 
-      socket.on('error', () => {
-        isConnected = false;
-        resolve(false);
-      });
+let discordSocket = null;
+let discordReady = false; // true, когда получили READY от Discord
+
+function connectToDiscord() {
+  return new Promise((resolve) => {
+    const ipcPath = getDiscordIpcPath();
+    console.log('[Discord] Connecting to:', ipcPath);
+
+    const socket = net.createConnection(ipcPath);
+
+    socket.on('connect', () => {
+      console.log('[Discord] Socket connected, sending handshake');
+      // Handshake
+      const handshake = { v: 1, client_id: CLIENT_ID };
+      sendPacket(socket, 0, handshake);
     });
+
+    socket.on('data', (data) => {
+      try {
+        const op = data.readInt32LE(0);
+        const len = data.readInt32LE(4);
+        const json = data.slice(8, 8 + len).toString('utf8');
+        const payload = JSON.parse(json);
+
+        if (payload.cmd === 'DISPATCH' && payload.evt === 'READY') {
+          console.log('[Discord] READY received. User:', payload.data?.user?.username);
+          discordReady = true;
+          resolve(true);
+        }
+      } catch (e) {
+        console.warn('[Discord] Failed to parse packet:', e.message);
+      }
+    });
+
+    socket.on('error', (err) => {
+      console.warn('[Discord] Socket error:', err.message);
+      discordReady = false;
+      resolve(false);
+    });
+
+    socket.on('close', () => {
+      console.log('[Discord] Socket closed');
+      discordReady = false;
+      discordSocket = null;
+    });
+
+    discordSocket = socket;
+  });
+}
+
+function sendPacket(socket, op, payload) {
+  if (!socket || !socket.writable) return;
+  const json = JSON.stringify(payload);
+  const len = Buffer.byteLength(json);
+  const buffer = Buffer.alloc(8 + len);
+  buffer.writeInt32LE(op, 0);
+  buffer.writeInt32LE(len, 4);
+  buffer.write(json, 8);
+  socket.write(buffer);
+}
+
+async function updatePresence(activity) {
+  if (!discordSocket || !discordReady) {
+    const ok = await connectToDiscord();
+    if (!ok) return;
   }
 
-  function sendPacket(op, payload) {
-    if (!socket || !isConnected) return;
-    
-    const json = JSON.stringify(payload);
-    const len = Buffer.byteLength(json);
-    const buffer = Buffer.alloc(8 + len);
-    
-    buffer.writeInt32LE(op, 0);
-    buffer.writeInt32LE(len, 4);
-    buffer.write(json, 8);
-    
-    socket.write(buffer);
-  }
-
-  // Функция обновления статуса
-  async function updatePresence(clientId, activity) {
-    if (!isConnected) {
-      const connected = await connectToDiscord(clientId);
-      if (!connected) return;
-    }
-    
-    const payload = {
-      cmd: 'SET_ACTIVITY',
-      args: {
-        pid: process.pid,
-        activity: {
-          details: activity.details || 'Playing',
-          state: activity.state || 'In Game',
-          timestamps: {
-            start: activity.startTimestamp || Date.now(),
-          },
-          assets: {
-            large_image: activity.largeImageKey || 'logo', // Убедись, что ключ 'logo' добавлен в Discord Developer Portal
-            large_text: activity.largeImageText || 'Dangerous Ant Farm',
-          },
+  const payload = {
+    cmd: 'SET_ACTIVITY',
+    args: {
+      pid: process.pid,
+      activity: {
+        details: activity.details || 'Playing',
+        state: activity.state || 'In Game',
+        timestamps: {
+          start: activity.startTimestamp || Date.now(),
+        },
+        assets: {
+          large_image: activity.largeImageKey || 'logo',
+          large_text: activity.largeImageText || 'Dangerous Ant Farm',
         },
       },
-      nonce: Math.random().toString(36).substring(7),
-    };
-    
-    sendPacket(1, payload);
-  }
-  // --- КОНЕЦ КОДА ДЛЯ DISCORD ---
+    },
+    nonce: Math.random().toString(36).substring(7),
+  };
 
-  // Слушаем сообщения из React (из preload.cjs)
-  ipcMain.on('update-discord-rpc', async (event, details) => {
-    const clientId = '1555577699723120722'; // ЗАМЕНИ ЭТО на свой Application ID из Discord Dev Portal
-    await updatePresence(clientId, details);
-  });
-
-} catch (e) {
-  console.warn('Discord RPC не подключен:', e.message);
+  console.log('[Discord] Sending activity:', payload.args.activity.state);
+  sendPacket(discordSocket, 1, payload);
 }
-// --- КОНЕЦ ЛОГИКИ DISCORD ---
 
+// Слушаем сообщения из React (через preload.cjs)
+ipcMain.on('update-discord-rpc', async (_event, details) => {
+  try {
+    await updatePresence(details);
+  } catch (e) {
+    console.warn('[Discord] updatePresence failed:', e.message);
+  }
+});
+
+// ============================================================
+// ELECTRON WINDOW
+// ============================================================
 
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'), // <-- ВАЖНО! Указываем наш новый preload
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },
