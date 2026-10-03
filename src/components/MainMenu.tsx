@@ -154,15 +154,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const claimableCount = getClaimableCount(profile);
 
   return (
-    <div
-      style={{
-        paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
-        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
-      }}
-      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto flex flex-col justify-between select-none"
-    >
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between p-4 sm:p-6 select-none">
       {/* Background Canvas */}
       <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />
 

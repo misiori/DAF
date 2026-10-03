@@ -125,15 +125,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
   const displayedList = activeTab === 'discover' ? levels : displayedSavedLevels;
 
   return (
-    <div
-      style={{
-        paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
-        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
-      }}
-      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto bg-black text-neutral-100 flex flex-col select-none overscroll-none"
-    >
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
       {/* Top Bar with Discover / Saved Header Selector */}
       <div className="relative z-10 flex items-center justify-between pb-2 sm:pb-3 border-b border-neutral-800/80 shrink-0">
         <button
@@ -147,24 +139,16 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
           <span>chambers</span>
         </button>
 
-        {/* Single Switch Button: toggles between discover and saved */}
+        {/* Switch Button: toggles between discover and saved */}
         <button
           onClick={() => {
             sound.playClick();
             setActiveTab((prev) => (prev === 'discover' ? 'saved' : 'discover'));
           }}
-          className="flex items-center gap-2 px-5 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-400 text-neutral-100 transition-all cursor-pointer shadow-md group"
+          className="font-['Caveat'] text-3xl sm:text-4xl lowercase text-neutral-100 hover:text-white transition-all cursor-pointer select-none active:scale-95 px-3 py-0.5 rounded-2xl hover:bg-neutral-900/60"
           title="click to switch between discover and saved"
         >
-          <span className="font-['Caveat'] text-3xl sm:text-4xl lowercase font-bold text-white group-hover:scale-105 transition-transform">
-            {activeTab}
-          </span>
-          <span className="text-xs font-['Patrick_Hand'] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 group-hover:text-neutral-200 border border-neutral-700/60 lowercase flex items-center gap-1">
-            <span>switch to {activeTab === 'discover' ? 'saved' : 'discover'}</span>
-            {activeTab === 'discover' && savedIds.length > 0 && (
-              <span className="text-amber-400 font-bold">({savedIds.length})</span>
-            )}
-          </span>
+          {activeTab}
         </button>
 
         <div className="w-20 flex justify-end">

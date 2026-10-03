@@ -232,15 +232,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
 
   if (isMobileDevice()) {
     return (
-      <div
-        style={{
-          paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
-          paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
-          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
-        }}
-        className="relative w-full min-h-[100dvh] overflow-y-auto bg-black text-neutral-100 flex flex-col items-center justify-center p-6 text-center select-none overscroll-none space-y-5"
-      >
+      <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col items-center justify-center p-6 text-center select-none overscroll-none space-y-5">
         <div className="w-16 h-16 rounded-3xl bg-neutral-900 border border-neutral-700 flex items-center justify-center text-neutral-300">
           <Monitor className="w-8 h-8" />
         </div>
@@ -261,15 +253,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   }
 
   return (
-    <div
-      style={{
-        paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
-        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
-      }}
-      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none"
-    >
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
       {/* Top Header */}
       <div className="relative z-10 flex items-center justify-between pb-2 border-b border-neutral-800 shrink-0">
         <button
