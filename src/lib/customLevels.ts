@@ -232,47 +232,195 @@ export async function fetchLevelsByCreator(creatorUsername: string): Promise<Cus
 }
 
 /**
- * Get all drafts and user created levels for the local player
+ * Clear all custom levels from device storage upon logout
  */
-export function getLocalUserDrafts(): CustomLevel[] {
+export function clearDeviceCustomLevels(): void {
   try {
-    const raw = localStorage.getItem(LOCAL_DRAFTS_KEY);
+    localStorage.removeItem(LOCAL_DRAFTS_KEY);
+    localStorage.removeItem('ant_farm_user_drafts');
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('ant_farm_levels_') || k.startsWith('ant_farm_user_drafts'))) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch (e) {
+    console.warn('Error clearing device custom levels', e);
+  }
+}
+
+export function getUserLevelsKey(profile?: PlayerProfile): string | null {
+  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+    return null;
+  }
+  return `ant_farm_levels_${profile.id}`;
+}
+
+/**
+ * Fetch all user-created levels.
+ * When logged out (guest), returns empty array.
+ * When logged in, fetches from account (Supabase + user account cache).
+ */
+export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<CustomLevel[]> {
+  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+    return [];
+  }
+
+  const userKey = getUserLevelsKey(profile);
+  let localList: CustomLevel[] = [];
+  if (userKey) {
+    try {
+      const raw = localStorage.getItem(userKey);
+      if (raw) localList = JSON.parse(raw);
+    } catch (_) {}
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('custom_levels')
+      .select('*')
+      .or(`creator_id.eq.${profile.id},creator_username.eq.${profile.username}`);
+
+    if (!error && Array.isArray(data)) {
+      const dbLevels: CustomLevel[] = data.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        creatorId: row.creator_id,
+        creatorUsername: row.creator_username || profile.username,
+        creatorAvatarUrl: row.creator_avatar_url,
+        themeColor: row.theme_color || '#38bdf8',
+        bgColor: row.bg_color || '#090a0f',
+        anthills: row.anthills || [],
+        cocoons: row.cocoons || [],
+        bossCount: row.boss_count || 0,
+        powerUpChances: row.power_up_chances || { speed: 20, honeyTraps: 20, nukeBomb: 20, freezeBomb: 20 },
+        durationSeconds: row.duration_seconds || 40,
+        difficulty: row.difficulty || 'Unrated',
+        verified: Boolean(row.verified),
+        published: Boolean(row.published),
+        plays: row.plays || 0,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      const mergedMap = new Map<string, CustomLevel>();
+      dbLevels.forEach((l) => mergedMap.set(l.id, l));
+      localList.forEach((l) => {
+        if (!mergedMap.has(l.id)) mergedMap.set(l.id, l);
+      });
+      const finalList = Array.from(mergedMap.values());
+      if (userKey) {
+        localStorage.setItem(userKey, JSON.stringify(finalList));
+      }
+      return finalList;
+    }
+  } catch (e) {
+    console.warn('fetchUserCreatedLevels remote fetch note:', e);
+  }
+
+  return localList;
+}
+
+/**
+ * Get all drafts and user created levels for the player.
+ * When logged out, returns empty array so nothing is left on device.
+ */
+export function getLocalUserDrafts(profile?: PlayerProfile): CustomLevel[] {
+  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+    return [];
+  }
+  const userKey = getUserLevelsKey(profile);
+  if (!userKey) return [];
+  try {
+    const raw = localStorage.getItem(userKey);
     if (raw) {
       return JSON.parse(raw);
     }
   } catch (e) {
-    console.warn('Error reading local drafts', e);
+    console.warn('Error reading local user levels', e);
   }
   return [];
 }
 
 /**
- * Save draft level to local storage
+ * Save draft level to account and account cache (does not save on device if logged out)
  */
-export function saveDraftLevel(level: CustomLevel): void {
+export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile): Promise<void> {
+  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+    return;
+  }
+  const userKey = getUserLevelsKey(profile);
+  if (!userKey) return;
+
+  const updatedLvl: CustomLevel = {
+    ...level,
+    creatorId: profile.id,
+    creatorUsername: profile.username || level.creatorUsername,
+    updatedAt: new Date().toISOString(),
+  };
+
   try {
-    const list = getLocalUserDrafts();
-    const idx = list.findIndex((l) => l.id === level.id);
+    const list = getLocalUserDrafts(profile);
+    const idx = list.findIndex((l) => l.id === updatedLvl.id);
     if (idx >= 0) {
-      list[idx] = { ...level, updatedAt: new Date().toISOString() };
+      list[idx] = updatedLvl;
     } else {
-      list.unshift({ ...level, updatedAt: new Date().toISOString() });
+      list.unshift(updatedLvl);
     }
-    localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(list));
+    localStorage.setItem(userKey, JSON.stringify(list));
   } catch (e) {
-    console.warn('Error saving draft', e);
+    console.warn('Error saving draft level', e);
+  }
+
+  // Persist to account in Supabase
+  try {
+    await supabaseAdmin.from('custom_levels').upsert(
+      {
+        id: updatedLvl.id,
+        name: updatedLvl.name,
+        creator_id: profile.id,
+        creator_username: profile.username,
+        creator_avatar_url: profile.avatar_url,
+        theme_color: updatedLvl.themeColor,
+        bg_color: updatedLvl.bgColor || '#090a0f',
+        anthills: updatedLvl.anthills,
+        cocoons: updatedLvl.cocoons,
+        boss_count: updatedLvl.bossCount,
+        power_up_chances: updatedLvl.powerUpChances,
+        duration_seconds: updatedLvl.durationSeconds,
+        difficulty: updatedLvl.difficulty,
+        verified: Boolean(updatedLvl.verified),
+        published: Boolean(updatedLvl.published),
+        updated_at: updatedLvl.updatedAt,
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err) {
+    console.warn('saveDraftLevel Supabase sync note:', err);
   }
 }
 
 /**
- * Delete a draft level
+ * Delete a draft level from account and cache
  */
-export function deleteCustomLevelDraft(levelId: string): void {
+export async function deleteCustomLevelDraft(levelId: string, profile?: PlayerProfile): Promise<void> {
+  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+    return;
+  }
+  const userKey = getUserLevelsKey(profile);
+  if (userKey) {
+    try {
+      const list = getLocalUserDrafts(profile).filter((l) => l.id !== levelId);
+      localStorage.setItem(userKey, JSON.stringify(list));
+    } catch (e) {
+      console.warn('Error deleting draft from cache', e);
+    }
+  }
+
   try {
-    const list = getLocalUserDrafts().filter((l) => l.id !== levelId);
-    localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(list));
+    await supabaseAdmin.from('custom_levels').delete().eq('id', levelId);
   } catch (e) {
-    console.warn('Error deleting draft', e);
+    console.warn('deleteCustomLevelDraft Supabase delete note:', e);
   }
 }
 
@@ -501,6 +649,10 @@ export function customLevelToLevelConfig(
 ): LevelConfig & { customData: CustomLevel; isVerification?: boolean } {
   const numId = getCustomLevelNumberId(custom.id);
 
+  // If the level is not verified, playing it always runs in verification mode
+  const isUnverified = !custom.verified && !(custom as any).isVerified;
+  const effectiveVerification = Boolean(isVerification || isUnverified);
+
   const diffColorMap: Record<string, string> = {
     Unrated: '#94a3b8',
     Easy: '#38bdf8',
@@ -531,6 +683,6 @@ export function customLevelToLevelConfig(
     mechanicName: 'custom chamber',
     mechanicHint: 'custom layout created with chamber editor',
     customData: custom,
-    isVerification,
+    isVerification: effectiveVerification,
   };
 }

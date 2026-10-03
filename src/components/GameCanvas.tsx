@@ -1713,12 +1713,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               origin: { y: 0.6 },
             });
             if (customData?.id) {
-              const drafts = getLocalUserDrafts();
+              const drafts = getLocalUserDrafts(profile);
               const found = drafts.find((d) => d.id === customData.id);
               if (found) {
                 found.verified = true;
                 found.updatedAt = new Date().toISOString();
-                saveDraftLevel(found);
+                saveDraftLevel(found, profile);
+              } else {
+                saveDraftLevel({ ...customData, verified: true }, profile);
               }
               onLevelVerified?.(customData.id);
             }

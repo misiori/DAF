@@ -38,6 +38,7 @@ interface ChambersMenuProps {
   onBack: () => void;
   onOpenProfile?: (username: string) => void;
   initialSubView?: ChambersSubView;
+  onSubViewChange?: (sub: ChambersSubView) => void;
 }
 
 export const ChambersMenu: React.FC<ChambersMenuProps> = ({
@@ -46,10 +47,21 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   onBack,
   onOpenProfile,
   initialSubView = 'menu',
+  onSubViewChange,
 }) => {
   const [subView, setSubView] = useState<ChambersSubView>(initialSubView);
   const [editingLevel, setEditingLevel] = useState<CustomLevel | null>(null);
   const [mobileWarning, setMobileWarning] = useState<boolean>(false);
+
+  // Sync subView if parent updates initialSubView
+  React.useEffect(() => {
+    setSubView(initialSubView);
+  }, [initialSubView]);
+
+  const switchSubView = (target: ChambersSubView) => {
+    setSubView(target);
+    onSubViewChange?.(target);
+  };
 
   // Official campaign state
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
@@ -93,7 +105,8 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   // Custom level actions
   const handlePlayCustomLevel = (lvl: CustomLevel, isVerification = false) => {
     const config = customLevelToLevelConfig(lvl, isVerification);
-    onSelectLevel(config, 'your_levels');
+    const targetSection = subView === 'menu' ? 'discover' : subView;
+    onSelectLevel(config, targetSection);
   };
 
   const handleOpenCreateOrEditor = (lvlToEdit: CustomLevel | null = null) => {
@@ -103,7 +116,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
       return;
     }
     setEditingLevel(lvlToEdit);
-    setSubView('editor');
+    switchSubView('editor');
   };
 
   // SUB-VIEW: Your Levels
@@ -113,8 +126,11 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         profile={profile}
         onCreateNew={() => handleOpenCreateOrEditor(null)}
         onEditLevel={(lvl) => handleOpenCreateOrEditor(lvl)}
-        onPlayLevel={handlePlayCustomLevel}
-        onBack={() => setSubView('menu')}
+        onPlayLevel={(lvl, isVerification) => {
+          const config = customLevelToLevelConfig(lvl, isVerification);
+          onSelectLevel(config, 'your_levels');
+        }}
+        onBack={() => switchSubView('menu')}
       />
     );
   }
@@ -126,8 +142,11 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         initialLevel={editingLevel}
         profile={profile}
         onSave={() => {}}
-        onVerifyAndPlay={(lvl) => handlePlayCustomLevel(lvl, true)}
-        onBack={() => setSubView('your_levels')}
+        onVerifyAndPlay={(lvl) => {
+          const config = customLevelToLevelConfig(lvl, true);
+          onSelectLevel(config, 'your_levels');
+        }}
+        onBack={() => switchSubView('your_levels')}
       />
     );
   }
@@ -137,8 +156,11 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
     return (
       <DiscoverLevels
         profile={profile}
-        onPlayLevel={handlePlayCustomLevel}
-        onBack={() => setSubView('menu')}
+        onPlayLevel={(lvl: CustomLevel, isVerification?: boolean) => {
+          const config = customLevelToLevelConfig(lvl, isVerification);
+          onSelectLevel(config, 'discover');
+        }}
+        onBack={() => switchSubView('menu')}
         onOpenCreatorProfile={onOpenProfile}
       />
     );
@@ -154,7 +176,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
           <button
             onClick={() => {
               sound.playClick();
-              setSubView('menu');
+              switchSubView('menu');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-700/70 hover:border-neutral-400 text-neutral-300 hover:text-white transition-all cursor-pointer font-['Patrick_Hand'] text-base lowercase"
           >
@@ -365,7 +387,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         <motion.button
           onClick={() => {
             sound.playClick();
-            setSubView('official');
+            switchSubView('official');
           }}
           whileHover={{ scale: 1.025 }}
           whileTap={{ scale: 0.975 }}
@@ -391,7 +413,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
               setMobileWarning(true);
               return;
             }
-            setSubView('your_levels');
+            switchSubView('your_levels');
           }}
           whileHover={{ scale: 1.025 }}
           whileTap={{ scale: 0.975 }}
@@ -413,7 +435,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         <motion.button
           onClick={() => {
             sound.playClick();
-            setSubView('discover');
+            switchSubView('discover');
           }}
           whileHover={{ scale: 1.025 }}
           whileTap={{ scale: 0.975 }}

@@ -44,6 +44,7 @@ import {
   toggleSaveChamber,
   getCustomLevelProgress,
   getCustomLevelHighScore,
+  clearDeviceCustomLevels,
 } from '../lib/customLevels';
 import { SkinRenderer, getSkinById } from './SkinRenderer';
 import { LEVELS, DIFFICULTY_COLORS } from '../lib/constants';
@@ -452,6 +453,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     await supabase.auth.signOut();
     localStorage.removeItem('ant_farm_guest_profile_v2');
     localStorage.removeItem('ant_farm_guest_profile');
+    clearDeviceCustomLevels();
     const guest: PlayerProfile = {
       id: 'guest',
       username: 'Guest',

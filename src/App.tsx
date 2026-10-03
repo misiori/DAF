@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IntroScreen } from './components/IntroScreen';
 import { MainMenu } from './components/MainMenu';
-import { ChambersMenu } from './components/ChambersMenu';
+import { ChambersMenu, ChambersSubView } from './components/ChambersMenu';
 import { GameCanvas } from './components/GameCanvas';
 import { SkinsModal } from './components/SkinsModal';
 import { ProfileModal } from './components/ProfileModal';
@@ -10,7 +10,7 @@ import { DailyChallengesModal } from './components/DailyChallengesModal';
 import { OrientationGuard } from './components/OrientationGuard';
 import { PlayerProfile, LevelConfig } from './types/game';
 import { ChallengeEvent, recordChallengeEvent } from './lib/dailyChallenges';
-import { customLevelToLevelConfig } from './lib/customLevels';
+import { customLevelToLevelConfig, clearDeviceCustomLevels } from './lib/customLevels';
 import {
   getGuestProfile,
   saveGuestProfile,
@@ -27,6 +27,7 @@ export default function App() {
   const [view, setView] = useState<ViewMode>('intro');
   const [profile, setProfile] = useState<PlayerProfile>(getGuestProfile);
   const [selectedLevel, setSelectedLevel] = useState<LevelConfig | null>(null);
+  const [chambersSubView, setChambersSubView] = useState<ChambersSubView>('menu');
 
   // Modals
   const [showSkins, setShowSkins] = useState(false);
@@ -34,8 +35,12 @@ export default function App() {
   const [profileTargetUsername, setProfileTargetUsername] = useState<string | undefined>(undefined);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-    // === DISCORD RICH PRESENCE ===
-  // Idle в меню, Playing (level name) когда играешь
+
+  // Timestamp references to avoid timer resets on rerender
+  const gameStartTimestampRef = React.useRef<number>(Date.now());
+  const menuStartTimestampRef = React.useRef<number>(Date.now());
+
+  // === DISCORD RICH PRESENCE ===
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const api = (window as any).electronAPI;
@@ -47,15 +52,15 @@ export default function App() {
       api.updateDiscordPresence({
         details: 'Idle',
         state: 'in the menu',
-        startTimestamp: Date.now(),
+        startTimestamp: menuStartTimestampRef.current,
         largeImageKey: 'logo',
         largeImageText: 'Dangerous Ant Farm',
       });
     } else if (view === 'game' && selectedLevel) {
       api.updateDiscordPresence({
         details: `Playing: ${selectedLevel.name}`,
-        state: `${selectedLevel.difficulty} • ${selectedLevel.isEndless ? 'endless' : `#${selectedLevel.id}`}`,
-        startTimestamp: Date.now(),
+        state: `${selectedLevel.difficulty} • ${selectedLevel.isEndless ? 'free mode' : `#${selectedLevel.id}`}`,
+        startTimestamp: gameStartTimestampRef.current,
         largeImageKey: 'logo',
         largeImageText: 'Dangerous Ant Farm',
       });
@@ -113,6 +118,7 @@ export default function App() {
       if (event === 'SIGNED_OUT' || !session) {
         localStorage.removeItem('ant_farm_guest_profile_v2');
         localStorage.removeItem('ant_farm_guest_profile');
+        clearDeviceCustomLevels();
         const freshGuest: PlayerProfile = {
           id: 'guest',
           username: 'Guest',
@@ -378,7 +384,10 @@ export default function App() {
           >
             <MainMenu
               profile={profile}
-              onPlayClick={() => setView('level_select')}
+              onPlayClick={() => {
+                setChambersSubView('menu');
+                setView('level_select');
+              }}
               onOpenSkins={() => setShowSkins(true)}
               onOpenProfile={() => setShowProfile(true)}
               onOpenDailyChallenges={() => setShowDailyChallenges(true)}
@@ -399,11 +408,18 @@ export default function App() {
           >
             <ChambersMenu
               profile={profile}
-              onSelectLevel={(lvl) => {
+              initialSubView={chambersSubView}
+              onSubViewChange={(sub) => setChambersSubView(sub)}
+              onSelectLevel={(lvl, section) => {
                 setSelectedLevel(lvl);
+                if (section) setChambersSubView(section);
+                gameStartTimestampRef.current = Date.now();
                 setView('game');
               }}
-              onBack={() => setView('menu')}
+              onBack={() => {
+                setChambersSubView('menu');
+                setView('menu');
+              }}
               onOpenProfile={(username) => {
                 setProfileTargetUsername(username);
                 setShowProfile(true);
@@ -455,6 +471,8 @@ export default function App() {
               setShowProfile(false);
               setProfileTargetUsername(undefined);
               setSelectedLevel(customLevelToLevelConfig(customLvl));
+              setChambersSubView('discover');
+              gameStartTimestampRef.current = Date.now();
               setView('game');
             }}
             onClose={() => {

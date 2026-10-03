@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import {
   CustomLevel,
+  fetchUserCreatedLevels,
   getLocalUserDrafts,
   deleteCustomLevelDraft,
   getCustomLevelProgress,
@@ -37,22 +38,26 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
   onPlayLevel,
   onBack,
 }) => {
-  const [levels, setLevels] = useState<CustomLevel[]>([]);
+  const [levels, setLevels] = useState<CustomLevel[]>(() => getLocalUserDrafts(profile));
   const [mobileWarning, setMobileWarning] = useState<boolean>(false);
 
-  const loadLevels = () => {
-    const list = getLocalUserDrafts();
+  const loadLevels = async () => {
+    if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
+      setLevels([]);
+      return;
+    }
+    const list = await fetchUserCreatedLevels(profile);
     setLevels(list);
   };
 
   useEffect(() => {
     loadLevels();
-  }, []);
+  }, [profile.id]);
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     sound.playClick();
     if (confirm(`delete chamber "${name}"?`)) {
-      deleteCustomLevelDraft(id);
+      await deleteCustomLevelDraft(id, profile);
       loadLevels();
     }
   };

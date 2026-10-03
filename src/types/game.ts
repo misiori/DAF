@@ -23,7 +23,7 @@ export interface LevelConfig {
   durationSeconds: number;
   themeColor: string;
   bgColor: string;
-  description: string;
+  description?: string;
   spawnerCount: number;
   maxAnts: number;
   isEndless?: boolean;

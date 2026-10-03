@@ -30,7 +30,7 @@ import { DIFFICULTY_COLORS } from '../lib/constants';
 
 interface DiscoverLevelsProps {
   profile: PlayerProfile;
-  onPlayLevel: (level: CustomLevel) => void;
+  onPlayLevel: (level: CustomLevel, isVerification?: boolean) => void;
   onBack: () => void;
   onOpenCreatorProfile?: (username: string) => void;
   initialTab?: 'discover' | 'saved';
@@ -139,40 +139,25 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
           <span>chambers</span>
         </button>
 
-        {/* Tab Toggle: discover | saved */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-neutral-900/80 border border-neutral-800">
-          <button
-            onClick={() => {
-              sound.playClick();
-              setActiveTab('discover');
-            }}
-            className={`px-4 py-1 rounded-xl font-['Caveat'] text-2xl sm:text-3xl lowercase transition-all cursor-pointer ${
-              activeTab === 'discover'
-                ? 'bg-neutral-200 text-neutral-950 font-bold shadow'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            discover
-          </button>
-          <button
-            onClick={() => {
-              sound.playClick();
-              setActiveTab('saved');
-            }}
-            className={`px-4 py-1 rounded-xl font-['Caveat'] text-2xl sm:text-3xl lowercase transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'saved'
-                ? 'bg-neutral-200 text-neutral-950 font-bold shadow'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <span>saved</span>
-            {savedIds.length > 0 && (
-              <span className="text-xs font-['Patrick_Hand'] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                {savedIds.length}
-              </span>
+        {/* Single Switch Button: toggles between discover and saved */}
+        <button
+          onClick={() => {
+            sound.playClick();
+            setActiveTab((prev) => (prev === 'discover' ? 'saved' : 'discover'));
+          }}
+          className="flex items-center gap-2 px-5 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-400 text-neutral-100 transition-all cursor-pointer shadow-md group"
+          title="click to switch between discover and saved"
+        >
+          <span className="font-['Caveat'] text-3xl sm:text-4xl lowercase font-bold text-white group-hover:scale-105 transition-transform">
+            {activeTab}
+          </span>
+          <span className="text-xs font-['Patrick_Hand'] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 group-hover:text-neutral-200 border border-neutral-700/60 lowercase flex items-center gap-1">
+            <span>switch to {activeTab === 'discover' ? 'saved' : 'discover'}</span>
+            {activeTab === 'discover' && savedIds.length > 0 && (
+              <span className="text-amber-400 font-bold">({savedIds.length})</span>
             )}
-          </button>
-        </div>
+          </span>
+        </button>
 
         <div className="w-20 flex justify-end">
           {isMisiori && (

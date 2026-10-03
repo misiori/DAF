@@ -177,16 +177,16 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     sound.playClick();
     const lvl = getCurrentLevel();
-    saveDraftLevel(lvl);
+    await saveDraftLevel(lvl, profile);
     onSave(lvl);
     setPublishMessage('draft saved successfully!');
     setTimeout(() => setPublishMessage(null), 2500);
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     sound.playClick();
     if (anthills.length === 0) {
       setPublishError('place at least 1 anthill to verify your chamber!');
@@ -194,7 +194,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       return;
     }
     const lvl = getCurrentLevel();
-    saveDraftLevel(lvl);
+    await saveDraftLevel(lvl, profile);
     onVerifyAndPlay(lvl);
   };
 
