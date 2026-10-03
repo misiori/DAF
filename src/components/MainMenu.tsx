@@ -154,12 +154,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const claimableCount = getClaimableCount(profile);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col justify-between p-4 sm:p-7 select-none">
+    <div
+      style={{
+        paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+      }}
+      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto flex flex-col justify-between select-none"
+    >
       {/* Background Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
+      <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />
 
       {/* Top Bar: Profile (username + avatar only, no PTS) and audio / pwa */}
-      <div className="relative z-20 flex items-center justify-between gap-3">
+      <div className="relative z-20 flex items-center justify-between gap-3 shrink-0 pb-2">
         {/* Profile Button */}
         <button
           onClick={() => {
@@ -209,17 +217,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       </div>
 
       {/* Center: Title manuscript style & Carelessly Circled Play Icon */}
-      <div className="relative z-20 flex flex-col items-center justify-center my-auto text-center px-4">
+      <div className="relative z-20 flex flex-col items-center justify-center my-auto py-3 text-center px-4 shrink-0">
         {/* Info Button above the title */}
         <button
           onClick={() => {
             sound.playClick();
             setShowHowTo(true);
           }}
-          className="mb-4 p-1.5 rounded-full bg-neutral-900/40 hover:bg-neutral-800/80 border border-neutral-700/50 hover:border-neutral-500 text-neutral-400 hover:text-white transition-all active:scale-95 cursor-pointer backdrop-blur-sm"
+          className="mb-2 sm:mb-4 p-1.5 rounded-full bg-neutral-900/40 hover:bg-neutral-800/80 border border-neutral-700/50 hover:border-neutral-500 text-neutral-400 hover:text-white transition-all active:scale-95 cursor-pointer backdrop-blur-sm"
           title="how to play"
         >
-          <Info className="w-5 h-5" />
+          <Info className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Title in manuscript handwritten font with ! in the end */}
@@ -227,7 +235,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
-          className="font-['Caveat'] text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight text-neutral-100 mb-8 lowercase select-none"
+          className="font-['Caveat'] text-4xl sm:text-7xl md:text-8xl font-bold tracking-tight text-neutral-100 mb-4 sm:mb-8 lowercase select-none"
         >
           dangerous ant farm!
         </motion.h1>
@@ -238,15 +246,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             sound.playClick();
             onPlayClick();
           }}
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] border-2 border-neutral-300/80 hover:border-white bg-neutral-900/40 hover:bg-neutral-800/60 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 hover:scale-105 cursor-pointer group"
+          className="w-16 h-16 sm:w-24 sm:h-24 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] border-2 border-neutral-300/80 hover:border-white bg-neutral-900/40 hover:bg-neutral-800/60 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 hover:scale-105 cursor-pointer group"
           title="play"
         >
-          <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white ml-1 transition-transform group-hover:scale-110" />
+          <Play className="w-7 h-7 sm:w-10 sm:h-10 fill-white text-white ml-0.5 sm:ml-1 transition-transform group-hover:scale-110" />
         </button>
       </div>
 
       {/* Bottom Menu Buttons: skins, challenges, profile — handwritten & carelessly circled */}
-      <div className="relative z-20 flex flex-wrap items-center justify-center gap-3 sm:gap-5 pb-2">
+      <div className="relative z-20 flex flex-wrap items-center justify-center gap-2.5 sm:gap-5 pt-2 pb-1 shrink-0">
         <button
           onClick={() => {
             sound.playClick();

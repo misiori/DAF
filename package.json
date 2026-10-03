@@ -13,8 +13,10 @@
     "clean": "rm -rf dist server.js release",
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently \"vite --port=3000 --host=0.0.0.0\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "vite build && electron-builder --linux AppImage"
-
+    "electron:build": "vite build && electron-builder --linux AppImage",
+    "electron:build:linux": "vite build && electron-builder --linux AppImage zip",
+    "electron:build:win": "vite build && electron-builder --win nsis portable zip",
+    "electron:build:all": "vite build && electron-builder --linux --win"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -50,8 +52,9 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "app.vercel.dangerousantfarm",
-    "productName": "Dangerous Ant Farm",
+    "appId": "com.misiori.antfarm",
+    "productName": "Ant Farm",
+    "copyright": "Copyright © 2026 misiori",
     "publish": null,
     "directories": {
       "output": "release"
@@ -65,7 +68,25 @@
       "target": ["AppImage", "zip"],
       "category": "Game",
       "icon": "public/icon.png",
-      "artifactName": "DAF-${version}.${ext}"
+      "artifactName": "AntFarm-${version}.${ext}"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] }
+      ],
+      "icon": "public/icon.png",
+      "artifactName": "AntFarm-Setup-${version}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Ant Farm"
     }
   }
 }

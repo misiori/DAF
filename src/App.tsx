@@ -358,7 +358,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-neutral-950 font-sans select-none">
+    <div className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-x-hidden overflow-y-auto bg-black font-sans select-none overscroll-none">
       <AnimatePresence mode="wait">
         {view === 'intro' && (
           <motion.div
@@ -367,7 +367,7 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, filter: 'blur(10px)' }}
             transition={{ duration: 0.5 }}
-            className="w-full h-full"
+            className="w-full min-h-[100dvh]"
           >
             <IntroScreen onComplete={() => setView('menu')} />
           </motion.div>
@@ -380,7 +380,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 0.4 }}
-            className="w-full h-full"
+            className="w-full min-h-[100dvh]"
           >
             <MainMenu
               profile={profile}
@@ -404,7 +404,7 @@ export default function App() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -50 }}
             transition={{ duration: 0.35 }}
-            className="w-full h-full"
+            className="w-full min-h-[100dvh]"
           >
             <ChambersMenu
               profile={profile}

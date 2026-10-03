@@ -865,14 +865,60 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   };
 
+  const getPlayBoxBounds = useCallback((w: number, h: number) => {
+    let insetLeft = 0;
+    let insetRight = 0;
+    let insetTop = 0;
+    let insetBottom = 0;
+
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      try {
+        const probe = document.createElement('div');
+        probe.style.position = 'fixed';
+        probe.style.top = '0';
+        probe.style.left = '0';
+        probe.style.visibility = 'hidden';
+        probe.style.pointerEvents = 'none';
+        probe.style.paddingTop = 'env(safe-area-inset-top, 0px)';
+        probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+        probe.style.paddingLeft = 'env(safe-area-inset-left, 0px)';
+        probe.style.paddingRight = 'env(safe-area-inset-right, 0px)';
+        document.body.appendChild(probe);
+        const cs = getComputedStyle(probe);
+        insetLeft = parseFloat(cs.paddingLeft) || 0;
+        insetRight = parseFloat(cs.paddingRight) || 0;
+        insetTop = parseFloat(cs.paddingTop) || 0;
+        insetBottom = parseFloat(cs.paddingBottom) || 0;
+        document.body.removeChild(probe);
+      } catch (_) {}
+    }
+
+    // Safe padding: iPhone 13 camera section in landscape is ~47px on left or right.
+    // Ensure the camera cutout NEVER divides or overlaps the play container!
+    const isLandscapePhone = (w / h > 1.45 && h < 520) || (w < 950 && h < 480);
+    const minSidePad = isLandscapePhone ? 54 : 18;
+    const padLeft = Math.max(minSidePad, insetLeft + 14);
+    const padRight = Math.max(minSidePad, insetRight + 14);
+    const padTop = Math.max(h < 440 ? 56 : 72, insetTop + (h < 440 ? 48 : 60));
+    const padBottom = Math.max(18, insetBottom + 14);
+
+    return {
+      top: padTop,
+      bottom: Math.max(padTop + 100, h - padBottom),
+      left: padLeft,
+      right: Math.max(padLeft + 100, w - padRight),
+    };
+  }, []);
+
   const initLevel = useCallback(() => {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    const boxTop = 72;
-    const boxBottom = height - 20;
-    const boxLeft = 20;
-    const boxRight = width - 20;
+    const bounds = getPlayBoxBounds(width, height);
+    const boxTop = bounds.top;
+    const boxBottom = bounds.bottom;
+    const boxLeft = bounds.left;
+    const boxRight = bounds.right;
     const boxCenterX = (boxLeft + boxRight) / 2;
     const boxCenterY = (boxTop + boxBottom) / 2;
 
@@ -2656,6 +2702,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             setIsPaused(true);
             sound.playClick();
           }
+        }}
+        style={{
+          paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
+          paddingTop: 'max(0.6rem, env(safe-area-inset-top, 0px))',
         }}
         className="absolute top-0 inset-x-0 z-20 px-3 sm:px-6 py-1 sm:py-2 flex flex-col gap-1.5 pointer-events-auto bg-gradient-to-b from-black/90 via-black/50 to-transparent select-none"
       >

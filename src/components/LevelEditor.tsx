@@ -232,7 +232,15 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
 
   if (isMobileDevice()) {
     return (
-      <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col items-center justify-center p-6 text-center select-none overscroll-none space-y-5">
+      <div
+        style={{
+          paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
+          paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+        }}
+        className="relative w-full min-h-[100dvh] overflow-y-auto bg-black text-neutral-100 flex flex-col items-center justify-center p-6 text-center select-none overscroll-none space-y-5"
+      >
         <div className="w-16 h-16 rounded-3xl bg-neutral-900 border border-neutral-700 flex items-center justify-center text-neutral-300">
           <Monitor className="w-8 h-8" />
         </div>
@@ -253,7 +261,15 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   }
 
   return (
-    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
+    <div
+      style={{
+        paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+      }}
+      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none"
+    >
       {/* Top Header */}
       <div className="relative z-10 flex items-center justify-between pb-2 border-b border-neutral-800 shrink-0">
         <button
@@ -273,7 +289,6 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
             value={name}
             onChange={(e) => {
               setName(e.target.value);
-              setVerified(false);
             }}
             maxLength={28}
             placeholder="name ur chamber..."
@@ -292,7 +307,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       </div>
 
       {/* Main Editor Grid: Left = Arena & Placer, Right = Power-ups & Settings */}
-      <div className="relative z-10 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 pt-2.5 overflow-hidden">
+      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 pt-2.5 overflow-visible">
         {/* Left Column: Interactive Arena Canvas (7 cols) */}
         <div className="lg:col-span-7 flex flex-col min-h-0 bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4">
           {/* Tool Selector Bar */}

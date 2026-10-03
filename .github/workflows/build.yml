@@ -1,4 +1,4 @@
-name: Build AppImage
+name: Build & Package Game
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-linux:
+    name: Build Linux (AppImage & Zip)
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -22,12 +23,45 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build AppImage
-        run: npm run electron:build
+      - name: Build AppImage and Linux package
+        run: |
+          npm run electron:build:linux
+          cd release
+          sha256sum AntFarm* > SHA256SUMS-linux.txt || true
 
-      - name: Upload AppImage
+      - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dangerous-ant-farm-appimage
-          path: release/*.AppImage
+          name: AntFarm-Linux-x86_64
+          path: |
+            release/AntFarm*
+            release/SHA256SUMS-linux.txt
           if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (Installer, Portable & Zip)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Windows binaries
+        run: npm run electron:build:win
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AntFarm-Windows-x64
+          path: release/AntFarm*
+          if-no-files-found: error
+

@@ -511,8 +511,8 @@ export async function publishCustomLevel(
     updatedAt: new Date().toISOString(),
   };
 
-  // 1. Save in local drafts as published
-  saveDraftLevel(publishedLevel);
+  // 1. Save in local drafts and account as published
+  await saveDraftLevel(publishedLevel, profile);
 
   // 2. Add to community cache
   const community = getLocalCommunityCache().filter((l) => l.id !== publishedLevel.id);
@@ -554,6 +554,57 @@ export async function publishCustomLevel(
   }
 
   return { success: true };
+}
+
+/**
+ * Rename a custom level and preserve verified status so it can be republished directly
+ */
+export async function renameCustomLevel(
+  levelId: string,
+  newName: string,
+  profile: PlayerProfile
+): Promise<{ success: boolean; level?: CustomLevel; error?: string }> {
+  if (!newName || !newName.trim()) {
+    return { success: false, error: 'Chamber name cannot be empty!' };
+  }
+  const cleanName = newName.trim().toLowerCase();
+  const list = getLocalUserDrafts(profile);
+  const found = list.find((l) => l.id === levelId);
+  if (!found) {
+    return { success: false, error: 'Chamber not found' };
+  }
+
+  const updatedLevel: CustomLevel = {
+    ...found,
+    name: cleanName,
+    // Changing the name NEVER invalidates verification!
+    verified: Boolean(found.verified),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveDraftLevel(updatedLevel, profile);
+
+  // If already published, update library entry too
+  if (updatedLevel.published && updatedLevel.verified) {
+    try {
+      await supabaseAdmin
+        .from('custom_levels')
+        .update({
+          name: cleanName,
+          updated_at: updatedLevel.updatedAt,
+        })
+        .eq('id', levelId);
+
+      const comm = getLocalCommunityCache().map((l) =>
+        l.id === levelId ? { ...l, name: cleanName } : l
+      );
+      saveLocalCommunityCache(comm);
+    } catch (e) {
+      console.warn('rename update custom_levels error', e);
+    }
+  }
+
+  return { success: true, level: updatedLevel };
 }
 
 /**

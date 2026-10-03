@@ -169,7 +169,15 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   // SUB-VIEW: Official Campaign
   if (subView === 'official') {
     return (
-      <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
+      <div
+        style={{
+          paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
+          paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+        }}
+        className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto bg-black text-neutral-100 flex flex-col select-none overscroll-none"
+      >
         <AmbientAntBackground opacity={0.7} antCount={30} />
         {/* Top Bar */}
         <div className="relative z-10 flex items-center justify-between pb-2 sm:pb-3 border-b border-neutral-800/80 shrink-0">
@@ -358,7 +366,15 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
 
   // MAIN BUTTON MENU
   return (
-    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-4 sm:p-7 select-none overscroll-none justify-between">
+    <div
+      style={{
+        paddingLeft: 'max(3.25rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(3.25rem, env(safe-area-inset-right, 0px))',
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+      }}
+      className="relative w-full max-w-full min-h-[100dvh] h-auto overflow-y-auto bg-black text-neutral-100 flex flex-col select-none overscroll-none justify-between"
+    >
       <AmbientAntBackground opacity={0.6} antCount={25} />
 
       {/* Top Bar */}
@@ -382,7 +398,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
       </div>
 
       {/* Center 3 Action Buttons Hub */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full px-2 space-y-4 sm:space-y-5">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full px-2 py-4 space-y-3.5 sm:space-y-5 my-auto pb-8">
         {/* 1. OFFICIAL */}
         <motion.button
           onClick={() => {
@@ -453,8 +469,6 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
           </div>
         </motion.button>
       </div>
-
-      <div className="h-6" />
 
       {/* Mobile Notice Modal */}
       <AnimatePresence>
