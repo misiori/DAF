@@ -227,4 +227,71 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- ===============================================================
+-- 10. Create the public.custom_levels table
+-- ===============================================================
+CREATE TABLE IF NOT EXISTS public.custom_levels (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  creator_id TEXT NOT NULL,
+  creator_username TEXT NOT NULL,
+  creator_avatar_url TEXT,
+  theme_color TEXT DEFAULT '#38bdf8' NOT NULL,
+  bg_color TEXT DEFAULT '#090a0f' NOT NULL,
+  anthills JSONB DEFAULT '[]'::jsonb NOT NULL,
+  cocoons JSONB DEFAULT '[]'::jsonb NOT NULL,
+  boss_count INTEGER DEFAULT 1 NOT NULL,
+  power_up_chances JSONB DEFAULT '{"speed": 50, "honeyTraps": 50, "nukeBomb": 40, "freezeBomb": 40}'::jsonb NOT NULL,
+  duration_seconds INTEGER DEFAULT 40 NOT NULL,
+  difficulty TEXT DEFAULT 'Unrated' NOT NULL,
+  verified BOOLEAN DEFAULT false NOT NULL,
+  published BOOLEAN DEFAULT false NOT NULL,
+  plays INTEGER DEFAULT 0 NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for lightning fast feeds and creator queries
+CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
+CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_custom_levels_difficulty ON public.custom_levels (difficulty);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.custom_levels ENABLE ROW LEVEL SECURITY;
+
+-- Policy 1: Anyone can view published levels; creators can view their own drafts
+DROP POLICY IF EXISTS "Published levels and creator drafts are viewable" ON public.custom_levels;
+CREATE POLICY "Published levels and creator drafts are viewable"
+  ON public.custom_levels FOR SELECT
+  USING (published = true OR auth.uid()::text = creator_id);
+
+-- Policy 2: Users can ONLY insert levels under their own auth ID
+DROP POLICY IF EXISTS "Users can only insert their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only insert their own levels"
+  ON public.custom_levels FOR INSERT
+  WITH CHECK (auth.uid()::text = creator_id);
+
+-- Policy 3: Users can ONLY update their own levels (Prevents ownership transfer or trade bugs!)
+DROP POLICY IF EXISTS "Users can only update their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only update their own levels"
+  ON public.custom_levels FOR UPDATE
+  USING (auth.uid()::text = creator_id)
+  WITH CHECK (auth.uid()::text = creator_id);
+
+-- Policy 4: Users can ONLY delete their own levels
+DROP POLICY IF EXISTS "Users can only delete their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only delete their own levels"
+  ON public.custom_levels FOR DELETE
+  USING (auth.uid()::text = creator_id);
+
+-- ===============================================================
+-- 11. REPAIR SCRIPT: Fix any traded or mismatched levels
+-- Run this if any levels had their creator_id traded across accounts!
+-- ===============================================================
+UPDATE public.custom_levels c
+SET creator_id = p.id::text
+FROM public.profiles p
+WHERE LOWER(TRIM(c.creator_username)) = LOWER(TRIM(p.username))
+  AND c.creator_id != p.id::text;
+
 -- Database configuration complete!

@@ -60,6 +60,7 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
   };
 
   useEffect(() => {
+    setLevels(getLocalUserDrafts(profile));
     loadLevels();
   }, [profile.id]);
 

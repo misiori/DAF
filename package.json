@@ -77,16 +77,20 @@
         { "target": "zip", "arch": ["x64"] }
       ],
       "icon": "public/icon.png",
-      "artifactName": "AntFarm-Setup-${version}.${ext}",
+      "artifactName": "AntFarm-${version}-${target}.${ext}",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Ant Farm"
+      "shortcutName": "Ant Farm",
+      "artifactName": "AntFarm-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "AntFarm-Portable-${version}.${ext}"
     }
   }
 }

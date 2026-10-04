@@ -237,6 +237,7 @@ export async function fetchLevelsByCreator(creatorUsername: string): Promise<Cus
 export function clearDeviceCustomLevels(): void {
   try {
     localStorage.removeItem(LOCAL_DRAFTS_KEY);
+    localStorage.removeItem(LOCAL_COMMUNITY_CACHE_KEY);
     localStorage.removeItem('ant_farm_user_drafts');
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
@@ -271,15 +272,23 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
   if (userKey) {
     try {
       const raw = localStorage.getItem(userKey);
-      if (raw) localList = JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          // Strictly keep only levels belonging to this user
+          localList = parsed.filter((l) => !l.creatorId || l.creatorId === profile.id);
+        }
+      }
     } catch (_) {}
   }
 
   try {
+    // Strictly fetch by creator_id matching the authenticated profile ID
     const { data, error } = await supabaseAdmin
       .from('custom_levels')
       .select('*')
-      .or(`creator_id.eq.${profile.id},creator_username.eq.${profile.username}`);
+      .eq('creator_id', profile.id)
+      .order('updated_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
       const dbLevels: CustomLevel[] = data.map((row: any) => ({
@@ -306,7 +315,9 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
       const mergedMap = new Map<string, CustomLevel>();
       dbLevels.forEach((l) => mergedMap.set(l.id, l));
       localList.forEach((l) => {
-        if (!mergedMap.has(l.id)) mergedMap.set(l.id, l);
+        if ((!l.creatorId || l.creatorId === profile.id) && !mergedMap.has(l.id)) {
+          mergedMap.set(l.id, l);
+        }
       });
       const finalList = Array.from(mergedMap.values());
       if (userKey) {
@@ -334,7 +345,10 @@ export function getLocalUserDrafts(profile?: PlayerProfile): CustomLevel[] {
   try {
     const raw = localStorage.getItem(userKey);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((l) => !l.creatorId || l.creatorId === profile.id);
+      }
     }
   } catch (e) {
     console.warn('Error reading local user levels', e);
@@ -351,6 +365,13 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
   }
   const userKey = getUserLevelsKey(profile);
   if (!userKey) return;
+
+  // SECURITY: Prevent ownership transfer!
+  // If the level was already created by another user, refuse to overwrite it or reassign it!
+  if (level.creatorId && level.creatorId !== 'guest' && level.creatorId !== profile.id) {
+    console.warn('Refusing to save draft: level belongs to another creator', level.creatorId, 'current:', profile.id);
+    return;
+  }
 
   const updatedLvl: CustomLevel = {
     ...level,
@@ -418,7 +439,8 @@ export async function deleteCustomLevelDraft(levelId: string, profile?: PlayerPr
   }
 
   try {
-    await supabaseAdmin.from('custom_levels').delete().eq('id', levelId);
+    // Only delete if it genuinely belongs to this user!
+    await supabaseAdmin.from('custom_levels').delete().eq('id', levelId).eq('creator_id', profile.id);
   } catch (e) {
     console.warn('deleteCustomLevelDraft Supabase delete note:', e);
   }
@@ -498,6 +520,14 @@ export async function publishCustomLevel(
     };
   }
 
+  // Security check: cannot publish a level owned by someone else
+  if (level.creatorId && level.creatorId !== 'guest' && level.creatorId !== profile.id) {
+    return {
+      success: false,
+      error: 'You can only publish chambers you created!',
+    };
+  }
+
   const cleanName = level.name.trim().toLowerCase();
   const publishedLevel: CustomLevel = {
     ...level,
@@ -574,6 +604,10 @@ export async function renameCustomLevel(
     return { success: false, error: 'Chamber not found' };
   }
 
+  if (found.creatorId && found.creatorId !== profile.id) {
+    return { success: false, error: 'Cannot rename a chamber created by another player' };
+  }
+
   const updatedLevel: CustomLevel = {
     ...found,
     name: cleanName,
@@ -593,7 +627,8 @@ export async function renameCustomLevel(
           name: cleanName,
           updated_at: updatedLevel.updatedAt,
         })
-        .eq('id', levelId);
+        .eq('id', levelId)
+        .eq('creator_id', profile.id);
 
       const comm = getLocalCommunityCache().map((l) =>
         l.id === levelId ? { ...l, name: cleanName } : l

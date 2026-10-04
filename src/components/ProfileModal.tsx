@@ -345,15 +345,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         sound.playVictory();
         const cloudProfile = await fetchProfileById(data.user.id);
         if (cloudProfile) {
-          const merged = mergeProfiles(cloudProfile, currentProfile);
-          onProfileUpdated(merged);
-          await updateProfile(data.user.id, merged);
+          // Only merge guest progress into account; never merge across different user accounts
+          let finalProfile = cloudProfile;
+          if (currentProfile.id === 'guest' || currentProfile.id.startsWith('guest_')) {
+            finalProfile = mergeProfiles(cloudProfile, currentProfile);
+            await updateProfile(data.user.id, finalProfile);
+          }
+          onProfileUpdated(finalProfile);
         } else {
           const fallbackProfile: PlayerProfile = {
-            ...currentProfile,
             id: data.user.id,
             username: loginIdentifier.replace(/@.*$/, ''),
             email: emailToUse,
+            active_skin: 'amber',
+            unlocked_skins: ['amber'],
+            sugar_cubes: 0,
+            high_scores: {},
+            beaten_levels: [],
+            level_progress: {},
+            bonus_pts: 0,
           };
           onProfileUpdated(fallbackProfile);
           await updateProfile(data.user.id, fallbackProfile);

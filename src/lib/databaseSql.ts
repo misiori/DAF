@@ -249,30 +249,37 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
+CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);
+
 ALTER TABLE public.custom_levels ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Published custom levels are viewable by everyone" ON public.custom_levels;
-CREATE POLICY "Published custom levels are viewable by everyone"
+DROP POLICY IF EXISTS "Published levels and creator drafts are viewable" ON public.custom_levels;
+CREATE POLICY "Published levels and creator drafts are viewable"
   ON public.custom_levels FOR SELECT
-  USING (true);
+  USING (published = true OR auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Users can insert their own levels" ON public.custom_levels;
 CREATE POLICY "Users can insert their own levels"
   ON public.custom_levels FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Creators and admins can update their levels" ON public.custom_levels;
-CREATE POLICY "Creators and admins can update their levels"
+DROP POLICY IF EXISTS "Users can only update their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only update their own levels"
   ON public.custom_levels FOR UPDATE
-  USING (true);
+  USING (auth.uid()::text = creator_id)
+  WITH CHECK (auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Creators and admins can delete levels" ON public.custom_levels;
-CREATE POLICY "Creators and admins can delete levels"
+DROP POLICY IF EXISTS "Users can only delete their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only delete their own levels"
   ON public.custom_levels FOR DELETE
-  USING (true);
+  USING (auth.uid()::text = creator_id);
 `;
 
-export const CUSTOM_LEVELS_SETUP_SQL = `-- Run this in Supabase SQL Editor to enable public custom levels persistence:
+export const CUSTOM_LEVELS_SETUP_SQL = `-- Run this in Supabase SQL Editor to enable public custom levels persistence and repair traded levels:
 CREATE TABLE IF NOT EXISTS public.custom_levels (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -294,25 +301,39 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
+CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);
+
 ALTER TABLE public.custom_levels ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Published custom levels are viewable by everyone" ON public.custom_levels;
-CREATE POLICY "Published custom levels are viewable by everyone"
+DROP POLICY IF EXISTS "Published levels and creator drafts are viewable" ON public.custom_levels;
+CREATE POLICY "Published levels and creator drafts are viewable"
   ON public.custom_levels FOR SELECT
-  USING (true);
+  USING (published = true OR auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Users can insert their own levels" ON public.custom_levels;
 CREATE POLICY "Users can insert their own levels"
   ON public.custom_levels FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Creators and admins can update their levels" ON public.custom_levels;
-CREATE POLICY "Creators and admins can update their levels"
+DROP POLICY IF EXISTS "Users can only update their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only update their own levels"
   ON public.custom_levels FOR UPDATE
-  USING (true);
+  USING (auth.uid()::text = creator_id)
+  WITH CHECK (auth.uid()::text = creator_id);
 
 DROP POLICY IF EXISTS "Creators and admins can delete levels" ON public.custom_levels;
-CREATE POLICY "Creators and admins can delete levels"
+DROP POLICY IF EXISTS "Users can only delete their own levels" ON public.custom_levels;
+CREATE POLICY "Users can only delete their own levels"
   ON public.custom_levels FOR DELETE
-  USING (true);
+  USING (auth.uid()::text = creator_id);
+
+-- REPAIR SCRIPT: Fix any levels whose creator_id was swapped or traded
+UPDATE public.custom_levels c
+SET creator_id = p.id::text
+FROM public.profiles p
+WHERE LOWER(TRIM(c.creator_username)) = LOWER(TRIM(p.username))
+  AND c.creator_id != p.id::text;
 `;

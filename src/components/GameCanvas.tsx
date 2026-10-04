@@ -1729,14 +1729,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             if (customData?.id) {
               const drafts = getLocalUserDrafts(profile);
               const found = drafts.find((d) => d.id === customData.id);
-              if (found) {
+              if (found && (!found.creatorId || found.creatorId === profile.id)) {
                 found.verified = true;
                 found.updatedAt = new Date().toISOString();
                 saveDraftLevel(found, profile);
-              } else {
+                onLevelVerified?.(customData.id);
+              } else if (customData.creatorId === profile.id) {
                 saveDraftLevel({ ...customData, verified: true }, profile);
+                onLevelVerified?.(customData.id);
               }
-              onLevelVerified?.(customData.id);
             }
             onVictory(level.id, scoreRef.current, sugarRef.current, level.difficulty, Boolean(level.isEndless));
             return;
