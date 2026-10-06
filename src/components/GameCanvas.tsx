@@ -11,6 +11,7 @@ import {
   LevelConfig,
   SpeedMultiplier,
   PlayerProfile,
+  AntFormation,
 } from '../types/game';
 import { ChallengeEvent } from '../lib/dailyChallenges';
 import { getSkinById } from './SkinRenderer';
@@ -18,7 +19,7 @@ import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
-import { saveDraftLevel, getLocalUserDrafts } from '../lib/customLevels';
+import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations } from '../lib/customLevels';
 
 // === HANDWRITTEN FONT CONSTANTS ===
 const HAND_FONT = "'Patrick_Hand', cursive";
@@ -28,7 +29,7 @@ const HAND_REG_MD = "14px 'Patrick_Hand', cursive";
 
 // === PER-LEVEL SPAWN BEHAVIOR TABLE ===
 interface LevelSpawnStyle {
-  formation: 'direct' | 'orbit' | 'zigzag' | 'spiral' | 'twin';
+  formations: AntFormation[];
   volleySize: number;
   volleyInterval: number;
   fireChance: number;
@@ -37,62 +38,79 @@ interface LevelSpawnStyle {
   homing: number;
 }
 
-const LEVEL_SPAWN_STYLES: Record<number, LevelSpawnStyle> = {
-  1:  { formation: 'direct', volleySize: 1, volleyInterval: 3.2, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.85, homing: 0.7 },
-  2:  { formation: 'orbit',  volleySize: 1, volleyInterval: 2.8, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.90, homing: 0.8 },
-  3:  { formation: 'zigzag', volleySize: 1, volleyInterval: 2.6, fireChance: 0.05, acidChance: 0.00, antSpeedBoost: 0.95, homing: 0.85 },
-  4:  { formation: 'direct', volleySize: 2, volleyInterval: 2.4, fireChance: 0.00, acidChance: 0.05, antSpeedBoost: 1.00, homing: 0.9 },
-  5:  { formation: 'orbit',  volleySize: 2, volleyInterval: 2.1, fireChance: 0.08, acidChance: 0.05, antSpeedBoost: 1.05, homing: 0.9 },
-  6:  { formation: 'twin',   volleySize: 2, volleyInterval: 2.0, fireChance: 0.10, acidChance: 0.08, antSpeedBoost: 1.05, homing: 0.95 },
-  7:  { formation: 'zigzag', volleySize: 2, volleyInterval: 1.9, fireChance: 0.12, acidChance: 0.10, antSpeedBoost: 1.10, homing: 0.95 },
-  8:  { formation: 'spiral', volleySize: 3, volleyInterval: 1.9, fireChance: 0.10, acidChance: 0.12, antSpeedBoost: 1.10, homing: 0.95 },
-  9:  { formation: 'direct', volleySize: 3, volleyInterval: 1.7, fireChance: 0.18, acidChance: 0.15, antSpeedBoost: 1.15, homing: 1.0 },
-  10: { formation: 'spiral', volleySize: 3, volleyInterval: 1.6, fireChance: 0.20, acidChance: 0.18, antSpeedBoost: 1.20, homing: 1.0 },
-  11: { formation: 'orbit',  volleySize: 3, volleyInterval: 1.6, fireChance: 0.18, acidChance: 0.22, antSpeedBoost: 1.20, homing: 1.0 },
-  12: { formation: 'twin',   volleySize: 4, volleyInterval: 1.5, fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.25, homing: 1.0 },
-  13: { formation: 'spiral', volleySize: 4, volleyInterval: 1.4, fireChance: 0.28, acidChance: 0.25, antSpeedBoost: 1.30, homing: 1.0 },
-  14: { formation: 'zigzag', volleySize: 4, volleyInterval: 1.4, fireChance: 0.30, acidChance: 0.30, antSpeedBoost: 1.30, homing: 1.0 },
-  15: { formation: 'direct', volleySize: 5, volleyInterval: 1.3, fireChance: 0.30, acidChance: 0.28, antSpeedBoost: 1.35, homing: 1.0 },
-  16: { formation: 'orbit',  volleySize: 5, volleyInterval: 1.3, fireChance: 0.28, acidChance: 0.35, antSpeedBoost: 1.35, homing: 1.0 },
-  17: { formation: 'spiral', volleySize: 5, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
-  18: { formation: 'twin',   volleySize: 6, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
-  19: { formation: 'zigzag', volleySize: 6, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.35, antSpeedBoost: 1.50, homing: 1.0 },
-  20: { formation: 'direct', volleySize: 7, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.40, antSpeedBoost: 1.55, homing: 1.0 },
-  21: { formation: 'spiral', volleySize: 7, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.40, antSpeedBoost: 1.60, homing: 1.0 },
-  22: { formation: 'twin',   volleySize: 8, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.45, antSpeedBoost: 1.65, homing: 1.0 },
-  23: { formation: 'spiral', volleySize: 9, volleyInterval: 0.8, fireChance: 0.50, acidChance: 0.50, antSpeedBoost: 1.70, homing: 1.0 },
+type SpawnParams = Omit<LevelSpawnStyle, 'formations'>;
+
+const LEVEL_SPAWN_PARAMS: Record<number, SpawnParams> = {
+  1:  { volleySize: 1, volleyInterval: 3.2, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.85, homing: 0.7 },
+  2:  { volleySize: 1, volleyInterval: 2.8, fireChance: 0.00, acidChance: 0.00, antSpeedBoost: 0.90, homing: 0.8 },
+  3:  { volleySize: 1, volleyInterval: 2.6, fireChance: 0.05, acidChance: 0.00, antSpeedBoost: 0.95, homing: 0.85 },
+  4:  { volleySize: 2, volleyInterval: 2.4, fireChance: 0.00, acidChance: 0.05, antSpeedBoost: 1.00, homing: 0.9 },
+  5:  { volleySize: 2, volleyInterval: 2.1, fireChance: 0.08, acidChance: 0.05, antSpeedBoost: 1.05, homing: 0.9 },
+  6:  { volleySize: 2, volleyInterval: 2.0, fireChance: 0.10, acidChance: 0.08, antSpeedBoost: 1.05, homing: 0.95 },
+  7:  { volleySize: 2, volleyInterval: 1.9, fireChance: 0.12, acidChance: 0.10, antSpeedBoost: 1.10, homing: 0.95 },
+  8:  { volleySize: 3, volleyInterval: 1.9, fireChance: 0.10, acidChance: 0.12, antSpeedBoost: 1.10, homing: 0.95 },
+  9:  { volleySize: 3, volleyInterval: 1.7, fireChance: 0.18, acidChance: 0.15, antSpeedBoost: 1.15, homing: 1.0 },
+  10: { volleySize: 3, volleyInterval: 1.6, fireChance: 0.20, acidChance: 0.18, antSpeedBoost: 1.20, homing: 1.0 },
+  11: { volleySize: 3, volleyInterval: 1.6, fireChance: 0.18, acidChance: 0.22, antSpeedBoost: 1.20, homing: 1.0 },
+  12: { volleySize: 4, volleyInterval: 1.5, fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.25, homing: 1.0 },
+  13: { volleySize: 4, volleyInterval: 1.4, fireChance: 0.28, acidChance: 0.25, antSpeedBoost: 1.30, homing: 1.0 },
+  14: { volleySize: 4, volleyInterval: 1.4, fireChance: 0.30, acidChance: 0.30, antSpeedBoost: 1.30, homing: 1.0 },
+  15: { volleySize: 5, volleyInterval: 1.3, fireChance: 0.30, acidChance: 0.28, antSpeedBoost: 1.35, homing: 1.0 },
+  16: { volleySize: 5, volleyInterval: 1.3, fireChance: 0.28, acidChance: 0.35, antSpeedBoost: 1.35, homing: 1.0 },
+  17: { volleySize: 5, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
+  18: { volleySize: 6, volleyInterval: 1.1, fireChance: 0.35, acidChance: 0.35, antSpeedBoost: 1.45, homing: 1.0 },
+  19: { volleySize: 6, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.35, antSpeedBoost: 1.50, homing: 1.0 },
+  20: { volleySize: 7, volleyInterval: 1.0, fireChance: 0.40, acidChance: 0.40, antSpeedBoost: 1.55, homing: 1.0 },
+  21: { volleySize: 7, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.40, antSpeedBoost: 1.60, homing: 1.0 },
+  22: { volleySize: 8, volleyInterval: 0.9, fireChance: 0.45, acidChance: 0.45, antSpeedBoost: 1.65, homing: 1.0 },
+  23: { volleySize: 9, volleyInterval: 0.8, fireChance: 0.50, acidChance: 0.50, antSpeedBoost: 1.70, homing: 1.0 },
 };
 
-const DEFAULT_SPAWN_STYLE: LevelSpawnStyle = {
-  formation: 'direct', volleySize: 3, volleyInterval: 1.6,
+const DEFAULT_SPAWN_PARAMS: SpawnParams = {
+  volleySize: 3, volleyInterval: 1.6,
   fireChance: 0.20, acidChance: 0.20, antSpeedBoost: 1.20, homing: 1.0,
 };
 
-function getSpawnStyle(levelId: number, difficulty: string): LevelSpawnStyle {
-  let style: LevelSpawnStyle;
-  if (LEVEL_SPAWN_STYLES[levelId]) {
-    style = LEVEL_SPAWN_STYLES[levelId];
-  } else {
+function getSpawnStyle(
+  levelId: number,
+  difficulty: string,
+  levelCustomFormations?: AntFormation[]
+): LevelSpawnStyle {
+  // Use custom formations from level/editor if provided; otherwise follow the difficulty rule:
+  // - Easy: one direction ('direct')
+  // - Normal: spiral adds ('direct', 'spiral')
+  // - Hard: orbit adds ('direct', 'spiral', 'orbit')
+  // - Harder: the same ('direct', 'spiral', 'orbit')
+  // - Insane: twin adds ('direct', 'spiral', 'orbit', 'twin')
+  // - Crazy: orbit & all directions active ('direct', 'spiral', 'orbit', 'twin', 'zigzag')
+  const allowedFormations: AntFormation[] =
+    levelCustomFormations && levelCustomFormations.length > 0
+      ? levelCustomFormations
+      : (difficulty ? getDifficultyFormations(difficulty) : ['direct']);
+  const finalFormations: AntFormation[] =
+    allowedFormations && allowedFormations.length > 0 ? allowedFormations : ['direct'];
+
+  const base: SpawnParams = LEVEL_SPAWN_PARAMS[levelId] || (() => {
     const mult =
       difficulty === 'Easy' ? 0.7 :
       difficulty === 'Normal' ? 0.9 :
       difficulty === 'Hard' ? 1.1 :
       difficulty === 'Harder' ? 1.25 :
       difficulty === 'Insane' ? 1.45 : 1.6;
-    style = {
-      ...DEFAULT_SPAWN_STYLE,
-      volleySize: Math.round(DEFAULT_SPAWN_STYLE.volleySize * mult),
-      volleyInterval: DEFAULT_SPAWN_STYLE.volleyInterval / mult,
-      fireChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.fireChance * mult),
-      acidChance: Math.min(0.5, DEFAULT_SPAWN_STYLE.acidChance * mult),
-      antSpeedBoost: DEFAULT_SPAWN_STYLE.antSpeedBoost * mult,
+    return {
+      volleySize: Math.round(DEFAULT_SPAWN_PARAMS.volleySize * mult),
+      volleyInterval: DEFAULT_SPAWN_PARAMS.volleyInterval / mult,
+      fireChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.fireChance * mult),
+      acidChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.acidChance * mult),
+      antSpeedBoost: DEFAULT_SPAWN_PARAMS.antSpeedBoost * mult,
+      homing: 1.0,
     };
-  }
+  })();
 
-  // === GLOBAL SPEED NERF: -25% on all ants so Normal is beatable ===
   return {
-    ...style,
-    antSpeedBoost: style.antSpeedBoost * 0.90,
+    ...base,
+    formations: finalFormations,
+    antSpeedBoost: base.antSpeedBoost * 0.90,
   };
 }
 
@@ -1877,7 +1895,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         });
 
-        const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey);
+        const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey, level.formations);
         const HARD_ANT_CAP = 300;
 
         const breakDuration = getBreakDuration(effectiveDiffKey);
@@ -1983,34 +2001,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 const spawnX = hill.x + Math.cos(spawnAngle) * spawnDist;
                 const spawnY = hill.y + Math.sin(spawnAngle) * spawnDist;
 
-                let targetAngleOffset = 0;
-                const dxToCursor = safeTargetX - spawnX;
-                const dyToCursor = safeTargetY - spawnY;
-                const baseAngle = Math.atan2(dyToCursor, dxToCursor);
-
-                switch (spawnStyle.formation) {
-                  case 'direct':
-                    targetAngleOffset = 0;
-                    break;
-                  case 'orbit':
-                    targetAngleOffset = (Math.random() - 0.5) * 0.8;
-                    break;
-                  case 'zigzag':
-                    targetAngleOffset = Math.sin(gameTimeRef.current * 3 + i) * 0.9;
-                    break;
-                  case 'spiral':
-                    targetAngleOffset = Math.sin(gameTimeRef.current * 2 + i * 1.5) * 1.2;
-                    break;
-                  case 'twin':
-                    if (i % 2 === 0) {
-                      targetAngleOffset = 0;
-                    } else {
-                      const mirroredX = BOX_CENTER_X * 2 - safeTargetX;
-                      const mirroredY = BOX_CENTER_Y * 2 - safeTargetY;
-                      targetAngleOffset = Math.atan2(mirroredY - spawnY, mirroredX - spawnX) - baseAngle;
-                    }
-                    break;
-                }
+                // Pick one direction from the level's allowed formations (direct, spiral, orbit, twin, zigzag)
+                const availableFormations: AntFormation[] =
+                  spawnStyle.formations && spawnStyle.formations.length > 0
+                    ? spawnStyle.formations
+                    : ['direct'];
+                const chosenFormation: AntFormation =
+                  availableFormations[Math.floor(Math.random() * availableFormations.length)];
 
                 antsRef.current.push({
                   id: Math.random() * 1000000,
@@ -2027,7 +2024,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   angle: spawnAngle,
                   legPhase: Math.random() * 10,
                   health: antType === 'fire' ? 2 : 1,
-                  targetAngleOffset,
+                  formation: chosenFormation,
+                  formationPhase: Math.random() * Math.PI * 2 + i * 0.5,
+                  targetAngleOffset: 0,
                 });
               }
             });
@@ -2072,7 +2071,42 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             const dist = Math.hypot(dx, dy);
 
             let targetAngle = Math.atan2(dy, dx);
-            if (ant.targetAngleOffset) targetAngle += ant.targetAngleOffset;
+
+            // Compute dynamic movement angle based on the 5 directions:
+            // - direct: straight pursuit towards target
+            // - spiral: swirling inward vortex
+            // - orbit: swerving angular sweep around cursor
+            // - zigzag: rapid oscillating weave
+            // - twin: mirrored flanking split
+            switch (ant.formation) {
+              case 'direct':
+                // One direction: direct straight charge towards target
+                break;
+              case 'spiral':
+                // Swirling inward vortex
+                targetAngle += Math.sin(gameTimeRef.current * 3.6 + (ant.formationPhase ?? 0)) * 1.15;
+                break;
+              case 'orbit': {
+                // Swerving angular sweep / orbit around player cursor
+                const orbitDir = (Math.floor(ant.id) % 2 === 0 ? 1 : -1);
+                const orbitSweep = dist > 70 ? (Math.PI / 2.7) : (Math.PI / 4.5);
+                targetAngle += orbitDir * (orbitSweep + Math.sin(gameTimeRef.current * 2.2 + (ant.formationPhase ?? 0)) * 0.3);
+                break;
+              }
+              case 'zigzag':
+                // Rapid oscillating weave
+                targetAngle += Math.sin(gameTimeRef.current * 7.5 + (ant.formationPhase ?? 0)) * 0.95;
+                break;
+              case 'twin': {
+                // Mirrored flanking split
+                const twinSign = (Math.floor(ant.id) % 2 === 0 ? 1 : -1);
+                targetAngle += twinSign * (0.8 + Math.sin(gameTimeRef.current * 2.5 + (ant.formationPhase ?? 0)) * 0.25);
+                break;
+              }
+              default:
+                if (ant.targetAngleOffset) targetAngle += ant.targetAngleOffset;
+                break;
+            }
 
             let angleDiff = targetAngle - ant.angle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;

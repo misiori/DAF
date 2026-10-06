@@ -52,11 +52,29 @@
   height: 0px !important;
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important;
+/* Visible sleek scrollbar for editor and scrollable containers */
+.editor-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent !important;
+  -ms-overflow-style: auto !important;
 }
 
-.no-scrollbar {
-  -ms-overflow-style: none !important;
-  scrollbar-width: none !important;
+.editor-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 7px !important;
+  height: 7px !important;
 }
+
+.editor-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+.editor-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-radius: 9999px !important;
+}
+
+.editor-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45) !important;
+}
+

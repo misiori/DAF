@@ -11,6 +11,8 @@ export interface Skin {
   rarity?: 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
 }
 
+export type AntFormation = 'direct' | 'orbit' | 'zigzag' | 'spiral' | 'twin';
+
 export interface LevelConfig {
   id: number;
   name: string;
@@ -30,6 +32,7 @@ export interface LevelConfig {
   mechanicId?: string;
   mechanicName?: string;
   mechanicHint?: string;
+  formations?: AntFormation[];
 }
 
 export type SpeedMultiplier = 0.5 | 1.0 | 1.5 | 2.0;
@@ -54,6 +57,8 @@ export interface Ant {
   honeyFreezeTimer?: number;
   isBoss?: boolean;
 bossSizeBoost?: number;
+  formation?: AntFormation;
+  formationPhase?: number;
 }
 
 export interface Anthill {

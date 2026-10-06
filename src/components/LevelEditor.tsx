@@ -16,6 +16,7 @@ import {
   Sparkles,
   Info,
   Monitor,
+  Check,
 } from 'lucide-react';
 import {
   CustomLevel,
@@ -23,11 +24,12 @@ import {
   CustomCocoonPlacement,
   PowerUpChances,
   THEME_COLOR_PRESETS,
+  ALL_FORMATIONS,
   saveDraftLevel,
   publishCustomLevel,
   isMobileDevice,
 } from '../lib/customLevels';
-import { PlayerProfile } from '../types/game';
+import { PlayerProfile, AntFormation } from '../types/game';
 import { sound } from '../lib/audio';
 
 interface LevelEditorProps {
@@ -73,6 +75,27 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   );
   const [verified, setVerified] = useState<boolean>(initialLevel?.verified ?? false);
   const [published, setPublished] = useState<boolean>(initialLevel?.published ?? false);
+  const [formations, setFormations] = useState<AntFormation[]>(() => {
+    if (initialLevel?.formations && initialLevel.formations.length > 0) {
+      return initialLevel.formations;
+    }
+    return ['direct']; // default is one direction
+  });
+
+  const handleToggleFormation = (f: AntFormation) => {
+    sound.playClick();
+    if (formations.includes(f)) {
+      if (formations.length <= 1) {
+        setPublishError('u need to choose at least one direction!');
+        setTimeout(() => setPublishError(null), 2500);
+        return;
+      }
+      setFormations(formations.filter((item) => item !== f));
+    } else {
+      setFormations([...formations, f]);
+    }
+    setVerified(false); // modifying movement directions changes gameplay difficulty -> re-verify
+  };
 
   // Editor placement tool
   const [activeTool, setActiveTool] = useState<'anthill' | 'cocoon' | 'erase'>('anthill');
@@ -101,6 +124,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     verified,
     published,
     plays: initialLevel?.plays || 0,
+    formations: formations.length > 0 ? formations : ['direct'],
     createdAt: initialLevel?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
@@ -179,6 +203,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
 
   const handleSaveDraft = async () => {
     sound.playClick();
+    if (formations.length === 0) {
+      setPublishError('choose at least one direction in the editor!');
+      setTimeout(() => setPublishError(null), 3000);
+      return;
+    }
     const lvl = getCurrentLevel();
     await saveDraftLevel(lvl, profile);
     onSave(lvl);
@@ -193,6 +222,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       setTimeout(() => setPublishError(null), 3000);
       return;
     }
+    if (formations.length === 0) {
+      setPublishError('choose at least one direction in the editor!');
+      setTimeout(() => setPublishError(null), 3000);
+      return;
+    }
     const lvl = getCurrentLevel();
     await saveDraftLevel(lvl, profile);
     onVerifyAndPlay(lvl);
@@ -200,6 +234,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
 
   const handlePublish = async () => {
     sound.playClick();
+    if (formations.length === 0) {
+      setPublishError('choose at least one direction in the editor!');
+      setTimeout(() => setPublishError(null), 3000);
+      return;
+    }
     if (!verified) {
       setPublishError('you must verify this level 100% without noclip first!');
       setTimeout(() => setPublishError(null), 3500);
@@ -253,9 +292,9 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   }
 
   return (
-    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none overscroll-none">
-      {/* Top Header */}
-      <div className="relative z-10 flex items-center justify-between pb-2 border-b border-neutral-800 shrink-0">
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-y-auto overflow-x-hidden bg-black text-neutral-100 flex flex-col p-3 sm:p-5 select-none editor-scroll">
+      {/* Top Header (Sticky) */}
+      <div className="sticky top-0 z-30 bg-black/95 backdrop-blur-md flex items-center justify-between pb-2.5 pt-0.5 border-b border-neutral-800 shrink-0">
         <button
           onClick={() => {
             sound.playClick();
@@ -291,9 +330,9 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       </div>
 
       {/* Main Editor Grid: Left = Arena & Placer, Right = Power-ups & Settings */}
-      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 pt-2.5 overflow-visible">
+      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 pt-3 pb-10">
         {/* Left Column: Interactive Arena Canvas (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col min-h-0 bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4">
+        <div className="lg:col-span-7 flex flex-col bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4 lg:sticky lg:top-14 h-[440px] sm:h-[500px] lg:h-[calc(100vh-5.25rem)] min-h-[380px]">
           {/* Tool Selector Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2 border-b border-neutral-800/80 shrink-0">
             <div className="flex items-center gap-1.5">
@@ -468,7 +507,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
         </div>
 
         {/* Right Column: Settings, Theme Color, Power-Up Chances, Boss Count (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col min-h-0 bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4 overflow-y-auto space-y-4">
+        <div className="lg:col-span-5 flex flex-col bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4 space-y-4">
           {/* Theme Color Picker */}
           <div>
             <label className="text-sm font-['Patrick_Hand'] text-neutral-300 flex items-center justify-between lowercase mb-2">
@@ -633,6 +672,80 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 }}
                 className="w-full accent-sky-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
               />
+            </div>
+          </div>
+
+          {/* Ant Directions / Movement Formations */}
+          <div className="pt-2 border-t border-neutral-800/80">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
+                <Compass className="w-4 h-4 text-emerald-400" />
+                ant directions
+              </span>
+              <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
+                {formations.length} / 5 chosen
+              </span>
+            </div>
+            <p className="text-[11px] font-['Patrick_Hand'] text-neutral-400 lowercase mb-2 leading-tight">
+              choose in which direction are they going to make the chamber easier or harder. choose at least one.
+            </p>
+
+            <div className="grid grid-cols-1 gap-1.5">
+              {ALL_FORMATIONS.map((f) => {
+                const isSelected = formations.includes(f.id);
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => handleToggleFormation(f.id)}
+                    className={`flex items-center justify-between px-3 py-1.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-neutral-900 border-emerald-500/70 text-neutral-100 shadow-sm'
+                        : 'bg-neutral-950/60 border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
+                          isSelected
+                            ? 'bg-emerald-500 border-emerald-400 text-black'
+                            : 'border-neutral-700 bg-neutral-900'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-['Patrick_Hand'] text-sm lowercase leading-tight text-neutral-200">
+                          {f.label}
+                        </span>
+                        <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase leading-tight">
+                          {f.desc}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-400 lowercase hidden sm:inline">
+                        {f.diffTag}
+                      </span>
+                      <span
+                        className={`text-[10px] font-['Patrick_Hand'] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
+                          f.id === 'direct'
+                            ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                            : f.id === 'spiral'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : f.id === 'orbit'
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : f.id === 'twin'
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : 'bg-pink-500/15 text-pink-400 border border-pink-500/30'
+                        }`}
+                      >
+                        {f.badge}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

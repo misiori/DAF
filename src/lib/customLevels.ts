@@ -1,4 +1,4 @@
-import { LevelConfig, PlayerProfile } from '../types/game';
+import { LevelConfig, PlayerProfile, AntFormation } from '../types/game';
 import { supabase, supabaseAdmin, isMisioriUser } from './supabase';
 
 export interface CustomAnthillPlacement {
@@ -49,8 +49,46 @@ export interface CustomLevel {
   verified: boolean;
   published: boolean;
   plays: number;
+  formations?: AntFormation[];
   createdAt: string;
   updatedAt: string;
+}
+
+export const ALL_FORMATIONS: { id: AntFormation; label: string; desc: string; badge: string; diffTag: string }[] = [
+  { id: 'direct', label: 'one direction', desc: 'straight charge at target', badge: 'easy', diffTag: 'easier' },
+  { id: 'spiral', label: 'spiral', desc: 'swirling inward vortex', badge: 'normal', diffTag: 'adds in normal' },
+  { id: 'orbit', label: 'orbit', desc: 'swerving angular sweep', badge: 'hard', diffTag: 'adds in hard' },
+  { id: 'twin', label: 'twin', desc: 'mirrored flanking split', badge: 'insane', diffTag: 'adds in insane' },
+  { id: 'zigzag', label: 'zigzag', desc: 'rapid oscillating weave', badge: 'crazy', diffTag: 'adds in crazy' },
+];
+
+/**
+ * Difficulty-based ant movement direction rules:
+ * - Easy: go in one direction (direct)
+ * - Normal: spiral adds
+ * - Hard: orbit adds
+ * - Harder: the same as hard (direct, spiral, orbit)
+ * - Insane: twin adds
+ * - Crazy: orbit & all directions active
+ */
+export function getDifficultyFormations(difficulty: string): AntFormation[] {
+  const d = (difficulty || '').toLowerCase();
+  switch (d) {
+    case 'easy':
+      return ['direct'];
+    case 'normal':
+      return ['direct', 'spiral'];
+    case 'hard':
+      return ['direct', 'spiral', 'orbit'];
+    case 'harder':
+      return ['direct', 'spiral', 'orbit'];
+    case 'insane':
+      return ['direct', 'spiral', 'orbit', 'twin'];
+    case 'crazy':
+      return ['direct', 'spiral', 'orbit', 'twin', 'zigzag'];
+    default:
+      return ['direct'];
+  }
 }
 
 const LOCAL_DRAFTS_KEY = 'daf_custom_levels_drafts_v1';
@@ -185,6 +223,7 @@ export async function fetchDiscoverLevels(
         verified: Boolean(row.verified),
         published: true,
         plays: Number(row.plays || 0),
+        formations: row.formations || getDifficultyFormations(row.difficulty || 'Normal'),
         createdAt: row.created_at || row.createdAt || new Date().toISOString(),
         updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
       }));
@@ -308,6 +347,7 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
         verified: Boolean(row.verified),
         published: Boolean(row.published),
         plays: row.plays || 0,
+        formations: row.formations || getDifficultyFormations(row.difficulty || 'Normal'),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -412,6 +452,7 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
         difficulty: updatedLvl.difficulty,
         verified: Boolean(updatedLvl.verified),
         published: Boolean(updatedLvl.published),
+        formations: updatedLvl.formations || getDifficultyFormations(updatedLvl.difficulty || 'Normal'),
         updated_at: updatedLvl.updatedAt,
       },
       { onConflict: 'id' }
@@ -568,6 +609,7 @@ export async function publishCustomLevel(
       verified: true,
       published: true,
       plays: 0,
+      formations: publishedLevel.formations || getDifficultyFormations(publishedLevel.difficulty || 'Normal'),
       updated_at: new Date().toISOString(),
     };
 
@@ -768,6 +810,10 @@ export function customLevelToLevelConfig(
     mechanicId: 'custom_level',
     mechanicName: 'custom chamber',
     mechanicHint: 'custom layout created with chamber editor',
+    formations:
+      custom.formations && custom.formations.length > 0
+        ? custom.formations
+        : ['direct'],
     customData: custom,
     isVerification: effectiveVerification,
   };
