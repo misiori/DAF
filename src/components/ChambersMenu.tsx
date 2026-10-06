@@ -141,8 +141,11 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
       <LevelEditor
         initialLevel={editingLevel}
         profile={profile}
-        onSave={() => {}}
+        onSave={(lvl) => {
+          setEditingLevel(lvl);
+        }}
         onVerifyAndPlay={(lvl) => {
+          setEditingLevel(lvl);
           const config = customLevelToLevelConfig(lvl, true);
           onSelectLevel(config, 'your_levels');
         }}

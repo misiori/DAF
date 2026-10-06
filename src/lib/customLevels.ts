@@ -21,6 +21,7 @@ export interface PowerUpChances {
   honeyTraps: number;  // 0 to 100%
   nukeBomb: number;    // 0 to 100%
   freezeBomb: number;  // 0 to 100%
+  formations?: AntFormation[];
 }
 
 export type CustomLevelDifficulty =
@@ -223,7 +224,10 @@ export async function fetchDiscoverLevels(
         verified: Boolean(row.verified),
         published: true,
         plays: Number(row.plays || 0),
-        formations: row.formations || getDifficultyFormations(row.difficulty || 'Normal'),
+        formations:
+          (Array.isArray(row.formations) && row.formations.length > 0 ? row.formations : null) ||
+          (row.power_up_chances && Array.isArray(row.power_up_chances.formations) && row.power_up_chances.formations.length > 0 ? row.power_up_chances.formations : null) ||
+          ['direct'],
         createdAt: row.created_at || row.createdAt || new Date().toISOString(),
         updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
       }));
@@ -347,7 +351,10 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
         verified: Boolean(row.verified),
         published: Boolean(row.published),
         plays: row.plays || 0,
-        formations: row.formations || getDifficultyFormations(row.difficulty || 'Normal'),
+        formations:
+          (Array.isArray(row.formations) && row.formations.length > 0 ? row.formations : null) ||
+          (row.power_up_chances && Array.isArray(row.power_up_chances.formations) && row.power_up_chances.formations.length > 0 ? row.power_up_chances.formations : null) ||
+          ['direct'],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -435,28 +442,47 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
 
   // Persist to account in Supabase
   try {
-    await supabaseAdmin.from('custom_levels').upsert(
-      {
-        id: updatedLvl.id,
-        name: updatedLvl.name,
-        creator_id: profile.id,
-        creator_username: profile.username,
-        creator_avatar_url: profile.avatar_url,
-        theme_color: updatedLvl.themeColor,
-        bg_color: updatedLvl.bgColor || '#090a0f',
-        anthills: updatedLvl.anthills,
-        cocoons: updatedLvl.cocoons,
-        boss_count: updatedLvl.bossCount,
-        power_up_chances: updatedLvl.powerUpChances,
-        duration_seconds: updatedLvl.durationSeconds,
-        difficulty: updatedLvl.difficulty,
-        verified: Boolean(updatedLvl.verified),
-        published: Boolean(updatedLvl.published),
-        formations: updatedLvl.formations || getDifficultyFormations(updatedLvl.difficulty || 'Normal'),
-        updated_at: updatedLvl.updatedAt,
+    const directFormations =
+      updatedLvl.formations && updatedLvl.formations.length > 0
+        ? updatedLvl.formations
+        : ['direct'];
+
+    const payload = {
+      id: updatedLvl.id,
+      name: updatedLvl.name,
+      creator_id: profile.id,
+      creator_username: profile.username,
+      creator_avatar_url: profile.avatar_url,
+      theme_color: updatedLvl.themeColor,
+      bg_color: updatedLvl.bgColor || '#090a0f',
+      anthills: updatedLvl.anthills,
+      cocoons: updatedLvl.cocoons,
+      boss_count: updatedLvl.bossCount,
+      power_up_chances: {
+        ...(updatedLvl.powerUpChances || {}),
+        formations: directFormations,
       },
+      duration_seconds: updatedLvl.durationSeconds,
+      difficulty: updatedLvl.difficulty,
+      verified: Boolean(updatedLvl.verified),
+      published: Boolean(updatedLvl.published),
+      formations: directFormations,
+      updated_at: updatedLvl.updatedAt,
+    };
+
+    const { error: upsertErr } = await supabaseAdmin.from('custom_levels').upsert(
+      payload,
       { onConflict: 'id' }
     );
+
+    if (upsertErr) {
+      console.warn('saveDraftLevel Supabase sync note:', upsertErr.message);
+      if (upsertErr.message?.includes('formations') || upsertErr.code === '42703') {
+        const fallback = { ...payload };
+        delete (fallback as any).formations;
+        await supabaseAdmin.from('custom_levels').upsert(fallback, { onConflict: 'id' });
+      }
+    }
   } catch (err) {
     console.warn('saveDraftLevel Supabase sync note:', err);
   }
@@ -592,6 +618,11 @@ export async function publishCustomLevel(
 
   // 3. Persist to Supabase custom_levels table (or admin client)
   try {
+    const directFormations =
+      publishedLevel.formations && publishedLevel.formations.length > 0
+        ? publishedLevel.formations
+        : ['direct'];
+
     const payload = {
       id: publishedLevel.id,
       name: publishedLevel.name,
@@ -603,13 +634,16 @@ export async function publishCustomLevel(
       anthills: publishedLevel.anthills,
       cocoons: publishedLevel.cocoons,
       boss_count: publishedLevel.bossCount,
-      power_up_chances: publishedLevel.powerUpChances,
+      power_up_chances: {
+        ...(publishedLevel.powerUpChances || {}),
+        formations: directFormations,
+      },
       duration_seconds: publishedLevel.durationSeconds,
       difficulty: publishedLevel.difficulty,
       verified: true,
       published: true,
       plays: 0,
-      formations: publishedLevel.formations || getDifficultyFormations(publishedLevel.difficulty || 'Normal'),
+      formations: directFormations,
       updated_at: new Date().toISOString(),
     };
 
@@ -620,6 +654,11 @@ export async function publishCustomLevel(
 
     if (adminErr) {
       console.warn('Supabase custom_levels upsert note:', adminErr.message);
+      if (adminErr.message?.includes('formations') || adminErr.code === '42703') {
+        const fallback = { ...payload };
+        delete (fallback as any).formations;
+        await supabaseAdmin.from('custom_levels').upsert(fallback, { onConflict: 'id' });
+      }
     }
   } catch (err) {
     console.warn('publishCustomLevel remote exception:', err);
@@ -811,10 +850,16 @@ export function customLevelToLevelConfig(
     mechanicName: 'custom chamber',
     mechanicHint: 'custom layout created with chamber editor',
     formations:
-      custom.formations && custom.formations.length > 0
-        ? custom.formations
-        : ['direct'],
-    customData: custom,
+      (Array.isArray(custom.formations) && custom.formations.length > 0 ? custom.formations : null) ||
+      (custom.powerUpChances && Array.isArray((custom.powerUpChances as any).formations) && (custom.powerUpChances as any).formations.length > 0 ? (custom.powerUpChances as any).formations : null) ||
+      ['direct'],
+    customData: {
+      ...custom,
+      formations:
+        (Array.isArray(custom.formations) && custom.formations.length > 0 ? custom.formations : null) ||
+        (custom.powerUpChances && Array.isArray((custom.powerUpChances as any).formations) && (custom.powerUpChances as any).formations.length > 0 ? (custom.powerUpChances as any).formations : null) ||
+        ['direct'],
+    },
     isVerification: effectiveVerification,
   };
 }

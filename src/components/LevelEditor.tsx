@@ -79,6 +79,10 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     if (initialLevel?.formations && initialLevel.formations.length > 0) {
       return initialLevel.formations;
     }
+    const fromPowerUps = (initialLevel?.powerUpChances as any)?.formations;
+    if (Array.isArray(fromPowerUps) && fromPowerUps.length > 0) {
+      return fromPowerUps;
+    }
     return ['direct']; // default is one direction
   });
 
@@ -118,7 +122,10 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     anthills,
     cocoons,
     bossCount,
-    powerUpChances,
+    powerUpChances: {
+      ...powerUpChances,
+      formations: formations.length > 0 ? formations : ['direct'],
+    },
     durationSeconds,
     difficulty: initialLevel?.difficulty || 'Unrated',
     verified,

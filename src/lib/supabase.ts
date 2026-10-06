@@ -153,6 +153,41 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Ensure custom_levels has formations column
+CREATE TABLE IF NOT EXISTS public.custom_levels (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  creator_id TEXT NOT NULL,
+  creator_username TEXT NOT NULL,
+  creator_avatar_url TEXT,
+  theme_color TEXT DEFAULT '#38bdf8' NOT NULL,
+  bg_color TEXT DEFAULT '#090a0f' NOT NULL,
+  anthills JSONB DEFAULT '[]'::jsonb NOT NULL,
+  cocoons JSONB DEFAULT '[]'::jsonb NOT NULL,
+  boss_count INTEGER DEFAULT 1 NOT NULL,
+  power_up_chances JSONB DEFAULT '{"speed": 50, "honeyTraps": 50, "nukeBomb": 40, "freezeBomb": 40}'::jsonb NOT NULL,
+  duration_seconds INTEGER DEFAULT 40 NOT NULL,
+  difficulty TEXT DEFAULT 'Unrated' NOT NULL,
+  verified BOOLEAN DEFAULT false NOT NULL,
+  published BOOLEAN DEFAULT false NOT NULL,
+  plays INTEGER DEFAULT 0 NOT NULL,
+  formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'formations'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL;
+  END IF;
+END $$;
 `;
 
 const LOCAL_STORAGE_KEY = 'dangerous_ant_farm_guest_profile';

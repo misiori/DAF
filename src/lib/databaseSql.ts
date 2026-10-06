@@ -245,9 +245,22 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   verified BOOLEAN DEFAULT false NOT NULL,
   published BOOLEAN DEFAULT false NOT NULL,
   plays INTEGER DEFAULT 0 NOT NULL,
+  formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'formations'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
 CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);
@@ -297,9 +310,22 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   verified BOOLEAN DEFAULT false NOT NULL,
   published BOOLEAN DEFAULT false NOT NULL,
   plays INTEGER DEFAULT 0 NOT NULL,
+  formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'formations'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
 CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);

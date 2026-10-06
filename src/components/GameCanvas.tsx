@@ -83,10 +83,13 @@ function getSpawnStyle(
   // - Harder: the same ('direct', 'spiral', 'orbit')
   // - Insane: twin adds ('direct', 'spiral', 'orbit', 'twin')
   // - Crazy: orbit & all directions active ('direct', 'spiral', 'orbit', 'twin', 'zigzag')
+  // For user/custom levels (levelId >= 1000 or levelCustomFormations passed):
+  // User levels do NOT depend on difficulty! They only use their configured directions (or ['direct'] if not set up).
+  const isCustomLevel = levelId >= 1000 || levelCustomFormations !== undefined;
   const allowedFormations: AntFormation[] =
     levelCustomFormations && levelCustomFormations.length > 0
       ? levelCustomFormations
-      : (difficulty ? getDifficultyFormations(difficulty) : ['direct']);
+      : (isCustomLevel ? ['direct'] : getDifficultyFormations(difficulty));
   const finalFormations: AntFormation[] =
     allowedFormations && allowedFormations.length > 0 ? allowedFormations : ['direct'];
 
@@ -1749,6 +1752,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               const found = drafts.find((d) => d.id === customData.id);
               if (found && (!found.creatorId || found.creatorId === profile.id)) {
                 found.verified = true;
+                if (customData.formations && customData.formations.length > 0) {
+                  found.formations = customData.formations;
+                }
                 found.updatedAt = new Date().toISOString();
                 saveDraftLevel(found, profile);
                 onLevelVerified?.(customData.id);
