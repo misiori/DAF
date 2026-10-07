@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IntroScreen } from './components/IntroScreen';
 import { MainMenu } from './components/MainMenu';
@@ -27,6 +27,10 @@ export default function App() {
   const [view, setView] = useState<ViewMode>('intro');
   const [profile, setProfile] = useState<PlayerProfile>(getGuestProfile);
   const [selectedLevel, setSelectedLevel] = useState<LevelConfig | null>(null);
+  const selectedLevelRef = useRef<LevelConfig | null>(null);
+  useEffect(() => {
+    selectedLevelRef.current = selectedLevel;
+  }, [selectedLevel]);
   const [chambersSubView, setChambersSubView] = useState<ChambersSubView>('menu');
 
   // Modals
@@ -219,9 +223,17 @@ export default function App() {
   // === GAME OVER (loss or manual exit) ===
   // IMPORTANT: this NEVER marks a level as beaten and NEVER writes 100% progress.
   // Only onVictory is allowed to do that. Progress is clamped to 99% max.
+  // Sugar and high score points are ONLY added if the level is rated.
   const handleGameOver = useCallback(
     (lvlId: number, finalScore: number, sugarEarned: number, progressPercent = 0, isEndless = false) => {
       const idNum = Number(lvlId);
+      const curLevel = selectedLevelRef.current;
+      const isRated = curLevel
+        ? curLevel.isRated !== false &&
+          !(curLevel as any).isVerification &&
+          (curLevel as any).customData?.difficulty !== 'Unrated' &&
+          curLevel.difficulty !== ('Unrated' as any)
+        : true;
 
       setProfile((prevProfile) => {
         const currentHigh =
@@ -248,22 +260,26 @@ export default function App() {
           [String(idNum)]: newProgress,
         };
 
-        const updatedHighScores: Record<string, number> = {
-          ...(prevProfile.high_scores || {}),
-          [idNum]: newHigh,
-          [String(idNum)]: newHigh,
-        };
+        const updatedHighScores: Record<string, number> = isRated
+          ? {
+              ...(prevProfile.high_scores || {}),
+              [idNum]: newHigh,
+              [String(idNum)]: newHigh,
+            }
+          : { ...(prevProfile.high_scores || {}) };
 
         let updated: PlayerProfile = {
           ...prevProfile,
-          sugar_cubes: (prevProfile.sugar_cubes || 0) + sugarEarned,
+          sugar_cubes: isRated ? (prevProfile.sugar_cubes || 0) + sugarEarned : (prevProfile.sugar_cubes || 0),
           high_scores: updatedHighScores,
           level_progress: updatedProgress,
           beaten_levels: Array.from(beatenSet),
         };
 
-        const r = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
-        updated = r.updatedProfile;
+        if (isRated) {
+          const r = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
+          updated = r.updatedProfile;
+        }
 
         saveGuestProfile(updated);
         if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {
@@ -283,10 +299,19 @@ export default function App() {
 
   // === VICTORY (real, no-noclip completion) ===
   // Only this function can set level_progress to 100 and add to beaten_levels.
+  // Sugar and pts are ONLY added to account if the level is rated!
+  // Beaten statistics are recorded for BOTH official and user levels.
   const handleVictory = useCallback(
     (lvlId: number, finalScore: number, sugarEarned: number, difficulty: string, isEndless = false) => {
       const idNum = Number(lvlId);
       const victoryBonus = 25;
+      const curLevel = selectedLevelRef.current;
+      const isRated = curLevel
+        ? curLevel.isRated !== false &&
+          !(curLevel as any).isVerification &&
+          (curLevel as any).customData?.difficulty !== 'Unrated' &&
+          curLevel.difficulty !== ('Unrated' as any)
+        : true;
 
       setProfile((prevProfile) => {
         const currentHigh =
@@ -306,24 +331,49 @@ export default function App() {
           [String(idNum)]: 100,
         };
 
-        const updatedHighScores: Record<string, number> = {
-          ...(prevProfile.high_scores || {}),
-          [idNum]: newHigh,
-          [String(idNum)]: newHigh,
+        const updatedHighScores: Record<string, number> = isRated
+          ? {
+              ...(prevProfile.high_scores || {}),
+              [idNum]: newHigh,
+              [String(idNum)]: newHigh,
+            }
+          : { ...(prevProfile.high_scores || {}) };
+
+        const isCustom = Boolean((curLevel as any)?.customData || (curLevel as any)?.isCustom);
+        const effectiveDiff = (curLevel as any)?.customData?.difficulty || difficulty || curLevel?.difficulty || 'Normal';
+        const updatedBeatenDetails = {
+          ...(prevProfile.beaten_level_details || {}),
+          [idNum]: {
+            difficulty: effectiveDiff,
+            name: curLevel?.name || 'chamber',
+            isCustom,
+            isRated,
+          },
+          [String(idNum)]: {
+            difficulty: effectiveDiff,
+            name: curLevel?.name || 'chamber',
+            isCustom,
+            isRated,
+          },
         };
 
         let updated: PlayerProfile = {
           ...prevProfile,
-          sugar_cubes: (prevProfile.sugar_cubes || 0) + sugarEarned + victoryBonus,
+          sugar_cubes: isRated
+            ? (prevProfile.sugar_cubes || 0) + sugarEarned + victoryBonus
+            : (prevProfile.sugar_cubes || 0),
           high_scores: updatedHighScores,
           level_progress: updatedProgress,
           beaten_levels: Array.from(beatenSet),
+          beaten_level_details: updatedBeatenDetails,
         };
 
-        const r1 = recordChallengeEvent(updated, { type: 'beat_hard', difficulty: difficulty as any });
-        updated = r1.updatedProfile;
-        const r2 = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
-        updated = r2.updatedProfile;
+        if (isRated) {
+          const r1 = recordChallengeEvent(updated, { type: 'beat_hard', difficulty: difficulty as any });
+          updated = r1.updatedProfile;
+          const r2 = recordChallengeEvent(updated, { type: 'score_milestone', value: finalScore });
+          updated = r2.updatedProfile;
+        }
 
         saveGuestProfile(updated);
         if (updated.id !== 'guest' && !updated.id.startsWith('guest_')) {

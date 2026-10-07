@@ -13,6 +13,20 @@ export interface Skin {
 
 export type AntFormation = 'direct' | 'orbit' | 'zigzag' | 'spiral' | 'twin';
 
+export interface CustomPowerUpPlacement {
+  id: number;
+  xFrac: number;
+  yFrac: number;
+  type: 'nuke_bomb' | 'emp_bomb' | 'honey_trap';
+}
+
+export interface CustomSpeedPortalPlacement {
+  id: number;
+  xFrac: number;
+  yFrac: number;
+  targetSpeed: SpeedMultiplier;
+}
+
 export interface LevelConfig {
   id: number;
   name: string;
@@ -25,6 +39,7 @@ export interface LevelConfig {
   durationSeconds: number;
   themeColor: string;
   bgColor: string;
+  bgImage?: string;
   description?: string;
   spawnerCount: number;
   maxAnts: number;
@@ -33,6 +48,11 @@ export interface LevelConfig {
   mechanicName?: string;
   mechanicHint?: string;
   formations?: AntFormation[];
+  isRated?: boolean;
+  isCustom?: boolean;
+  customLevelId?: string;
+  customPowerUps?: CustomPowerUpPlacement[];
+  customSpeedPortals?: CustomSpeedPortalPlacement[];
 }
 
 export type SpeedMultiplier = 0.5 | 1.0 | 1.5 | 2.0;
@@ -184,5 +204,6 @@ export interface PlayerProfile {
   level_progress?: Record<string | number, number>;
   bonus_pts?: number;
   daily_challenges?: DailyChallengeProgress;
+  beaten_level_details?: Record<string | number, { difficulty: string; name?: string; isCustom?: boolean; isRated?: boolean }>;
   created_at?: string;
 }

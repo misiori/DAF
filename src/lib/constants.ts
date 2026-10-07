@@ -24,7 +24,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(251, 191, 36, 0.4)',
     description: 'Natural hardened amber resin with golden hexagonal bio-luminescence.',
     unlockedByDefault: false,
-    cost: 5,
+    cost: 150,
   },
   {
     id: 'crimson',
@@ -36,7 +36,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(248, 113, 113, 0.5)',
     description: 'Blazing soldier ant pheromone essence that burns with blood rage.',
     unlockedByDefault: false,
-    cost: 8,
+    cost: 200,
   },
   {
     id: 'forest_moss',
@@ -48,7 +48,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(34, 197, 94, 0.4)',
     description: 'Camouflaged forest bark with natural spore-cloud dispersion.',
     unlockedByDefault: false,
-    cost: 10,
+    cost: 280,
   },
 
   // --- RARE (5 Skins) ---
@@ -62,7 +62,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(34, 211, 238, 0.5)',
     description: 'Experimental cybernetic hive matrix tracking cursor.',
     unlockedByDefault: false,
-    cost: 12,
+    cost: 450,
   },
   {
     id: 'toxic',
@@ -74,7 +74,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(52, 211, 153, 0.5)',
     description: 'Corrosive formic acid vapor dripping with lethal bio-hazard energy.',
     unlockedByDefault: false,
-    cost: 14,
+    cost: 550,
   },
   {
     id: 'amethyst',
@@ -86,7 +86,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(192, 132, 252, 0.5)',
     description: 'Supreme subterranean queen aura radiating mystical void energy.',
     unlockedByDefault: false,
-    cost: 16,
+    cost: 650,
   },
   {
     id: 'solar_flare',
@@ -98,7 +98,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(251, 146, 60, 0.5)',
     description: 'Thermonuclear heat core that leaves trailing solar plasma ripples.',
     unlockedByDefault: false,
-    cost: 18,
+    cost: 750,
   },
   {
     id: 'glacial_cryo',
@@ -110,7 +110,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(125, 211, 252, 0.5)',
     description: 'Sub-zero cryo frost crystals that chill surrounding dirt particles.',
     unlockedByDefault: false,
-    cost: 20,
+    cost: 900,
   },
 
   // --- EPIC (6 Skins) ---
@@ -124,7 +124,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(74, 222, 128, 0.5)',
     description: 'High-frequency digital code stream pulsing through synthetic insect veins.',
     unlockedByDefault: false,
-    cost: 22,
+    cost: 1100,
   },
   {
     id: 'obsidian_shadow',
@@ -136,7 +136,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(203, 213, 225, 0.4)',
     description: 'Stealth volcanic glass forged in subterranean fissures to absorb light.',
     unlockedByDefault: false,
-    cost: 24,
+    cost: 1250,
   },
   {
     id: 'synthwave_pink',
@@ -148,7 +148,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(244, 114, 182, 0.5)',
     description: 'Retro-futuristic neon highway grid radiating high-energy synth pulses.',
     unlockedByDefault: false,
-    cost: 26,
+    cost: 1400,
   },
   {
     id: 'electric_volt',
@@ -160,7 +160,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(250, 204, 21, 0.6)',
     description: 'Arcing electrostatic discharges dancing across hyper-sensitive antennae.',
     unlockedByDefault: false,
-    cost: 28,
+    cost: 1600,
   },
   {
     id: 'radioactive_waste',
@@ -172,7 +172,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(163, 230, 53, 0.6)',
     description: 'Unstable isotope radiation dripping with glowing bio-mutagen essence.',
     unlockedByDefault: false,
-    cost: 30,
+    cost: 1800,
   },
   {
     id: 'magma_core',
@@ -184,7 +184,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(239, 68, 68, 0.6)',
     description: 'Molten magma shell flowing with liquid basalt and micro-eruptions.',
     unlockedByDefault: false,
-    cost: 32,
+    cost: 2000,
   },
 
   // --- LEGENDARY (5 Skins) ---
@@ -198,7 +198,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(245, 158, 11, 0.55)',
     description: 'Intricate brass clockwork gears ticking in synchrony with level BPM.',
     unlockedByDefault: false,
-    cost: 35,
+    cost: 2500,
   },
   {
     id: 'ghost_phantom',
@@ -210,7 +210,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(248, 250, 252, 0.6)',
     description: 'Ethereal spectral projection phasing through physical terrarium boundaries.',
     unlockedByDefault: false,
-    cost: 38,
+    cost: 2800,
   },
   {
     id: 'blood_moon',
@@ -222,7 +222,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(220, 38, 38, 0.6)',
     description: 'Occult crimson moon aura invoking the ferocity of ancient ant broods.',
     unlockedByDefault: false,
-    cost: 40,
+    cost: 3200,
   },
   {
     id: 'deep_nebula',
@@ -234,7 +234,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(129, 140, 248, 0.6)',
     description: 'Swirling stellar dust and birthplaces of cosmic ant dynasties.',
     unlockedByDefault: false,
-    cost: 42,
+    cost: 3600,
   },
   {
     id: 'quantum_pulsar',
@@ -246,7 +246,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(167, 139, 250, 0.6)',
     description: 'High-energy gamma beam emitter spinning at blinding rotational velocity.',
     unlockedByDefault: false,
-    cost: 45,
+    cost: 4000,
   },
 
   // --- MYTHIC (4 Skins) ---
@@ -260,7 +260,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(94, 234, 212, 0.65)',
     description: 'Celestial geomagnetic curtain waving with luminous teal and emerald radiance.',
     unlockedByDefault: false,
-    cost: 50,
+    cost: 5000,
   },
   {
     id: 'carbon_titanium',
@@ -272,7 +272,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(148, 163, 184, 0.65)',
     description: 'Aerospace-grade composite weave reinforced with nano-diamond coatings.',
     unlockedByDefault: false,
-    cost: 55,
+    cost: 6000,
   },
   {
     id: 'queen_regalia',
@@ -284,7 +284,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(251, 113, 133, 0.7)',
     description: 'The ceremonial crown of the colony sovereign, carved from crystalline chitin.',
     unlockedByDefault: false,
-    cost: 60,
+    cost: 7500,
   },
   {
     id: 'celestial_sovereign',
@@ -296,7 +296,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(253, 224, 71, 0.7)',
     description: 'Apex divine transcendence. Golden starlight wings granting supreme colony mastery.',
     unlockedByDefault: false,
-    cost: 65,
+    cost: 9000,
   },
   {
     id: 'dark_singularity',
@@ -308,7 +308,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(99, 102, 241, 0.75)',
     description: 'Gravitational event horizon collapsing light into an impenetrable void vortex.',
     unlockedByDefault: false,
-    cost: 70,
+    cost: 10000,
   },
   {
     id: 'hyper_drive',
@@ -320,7 +320,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(34, 211, 238, 0.75)',
     description: 'Faster-than-light tachyon drive projecting relativistic quantum trails.',
     unlockedByDefault: false,
-    cost: 75,
+    cost: 12000,
   },
   {
     id: 'prism_rainbow',
@@ -332,7 +332,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(244, 114, 182, 0.65)',
     description: 'Refractive diamond facet splitting pure white photons into a rainbow spectrum.',
     unlockedByDefault: false,
-    cost: 48,
+    cost: 4500,
   },
   {
     id: 'bio_nanite',
@@ -344,7 +344,7 @@ export const SKINS: Skin[] = [
     trailColor: 'rgba(165, 243, 252, 0.6)',
     description: 'Self-replicating microscopic cyber-nanites assembling instant force-fields.',
     unlockedByDefault: false,
-    cost: 34,
+    cost: 2200,
   },
 ];
 

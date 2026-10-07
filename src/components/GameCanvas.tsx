@@ -677,6 +677,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [freeModeSecondsLeft, setFreeModeSecondsLeft] = useState<number>(15);
   const [isHeaderStopped, setIsHeaderStopped] = useState(false);
   const isHeaderStoppedRef = useRef(false);
+  const [justResumedPlay, setJustResumedPlay] = useState(false);
+  const bgImageElementRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (level.bgImage) {
+      const img = new Image();
+      img.src = level.bgImage;
+      img.onload = () => {
+        bgImageElementRef.current = img;
+      };
+    } else {
+      bgImageElementRef.current = null;
+    }
+  }, [level.bgImage]);
 
   // === NOCLIP ===
   const [noclip, setNoclip] = useState(false);
@@ -1242,6 +1256,38 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         });
       });
     }
+
+    // Spawn manually placed custom power-ups
+    const placedPowerUps = level.customPowerUps || customData?.customPowerUps || [];
+    placedPowerUps.forEach((p: any, idx: number) => {
+      initialPods.push({
+        id: 8000 + idx,
+        x: boxLeft + p.xFrac * boxW,
+        y: boxTop + p.yFrac * boxH,
+        radius: 20,
+        type: p.type,
+        pulse: 0,
+        label: p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'emp pod' : 'honey',
+      });
+    });
+
+    // Spawn manually placed custom speed portals
+    const placedPortals = level.customSpeedPortals || customData?.customSpeedPortals || [];
+    placedPortals.forEach((sp: any, idx: number) => {
+      const portalColor =
+        sp.targetSpeed === 0.5 ? '#10b981' : sp.targetSpeed === 1.0 ? '#38bdf8' : sp.targetSpeed === 1.5 ? '#f59e0b' : '#ef4444';
+      portalsRef.current.push({
+        id: 9000 + idx,
+        x: boxLeft + sp.xFrac * boxW,
+        y: boxTop + sp.yFrac * boxH,
+        radius: 22,
+        targetSpeed: sp.targetSpeed,
+        active: true,
+        angle: 0,
+        color: portalColor,
+        label: getSpeedName(sp.targetSpeed),
+      });
+    });
     const mech = level.mechanicId || 'nuke_houses';
     if (mech === 'emp_pods' || mech === 'cryo_barrels') {
       initialPods.push({
@@ -1667,7 +1713,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           isHeaderStoppedRef.current = false;
           setIsHeaderStopped(false);
           sound.playClick();
-          addFloatingText('back in container! play!', width / 2, BOX_TOP + 40, '#a3e635');
+          addFloatingText('play', width / 2, BOX_TOP + 40, '#a3e635');
+          setJustResumedPlay(true);
+          setTimeout(() => setJustResumedPlay(false), 900);
         }
 
         honeyTrapsRef.current.forEach((trap) => {
@@ -1790,10 +1838,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (customData?.powerUpChances?.speed !== undefined) {
             portalRate = (customData.powerUpChances.speed / 100) * 0.008;
           }
+
+          const speedWeights: Record<number, number> = {
+            0.5: customData?.powerUpChances?.speed05 ?? 50,
+            1.0: customData?.powerUpChances?.speed10 ?? 50,
+            1.5: customData?.powerUpChances?.speed15 ?? 50,
+            2.0: customData?.powerUpChances?.speed20 ?? 50,
+          };
+
           if (portalRate > 0 && Math.random() < portalRate * speedMult && portalsRef.current.length < 2) {
-            const filtered = allowedSpeeds.filter((s) => s !== speedMult);
+            const filtered = allowedSpeeds
+              .filter((s) => s !== speedMult)
+              .filter((s) => (speedWeights[s] ?? 50) > 0);
+
             if (filtered.length > 0) {
-              const target = filtered[Math.floor(Math.random() * filtered.length)];
+              const totalWeight = filtered.reduce((acc, s) => acc + (speedWeights[s] ?? 50), 0);
+              let roll = Math.random() * totalWeight;
+              let target: SpeedMultiplier = filtered[0];
+              for (const cand of filtered) {
+                roll -= speedWeights[cand] ?? 50;
+                if (roll <= 0) {
+                  target = cand;
+                  break;
+                }
+              }
+
               const portalColor =
                 target === 0.5 ? '#10b981' : target === 1.0 ? '#38bdf8' : target === 1.5 ? '#f59e0b' : '#ef4444';
 
@@ -2319,8 +2388,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (shakeRef.current < 0.5) shakeRef.current = 0;
       }
 
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = level.bgColor || '#000000';
       ctx.fillRect(0, 0, width, height);
+
+      // Render custom uploaded background image if present
+      if (bgImageElementRef.current && bgImageElementRef.current.complete) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(BOX_LEFT, BOX_TOP, BOX_RIGHT - BOX_LEFT, BOX_BOTTOM - BOX_TOP);
+        ctx.clip();
+        ctx.globalAlpha = 0.50;
+        ctx.drawImage(bgImageElementRef.current, BOX_LEFT, BOX_TOP, BOX_RIGHT - BOX_LEFT, BOX_BOTTOM - BOX_TOP);
+        ctx.restore();
+      }
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
       for (let x = 30; x < width; x += 40) {
@@ -2796,7 +2876,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       {isHeaderStopped && (
         <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none px-4 py-1.5 rounded-full bg-neutral-900/95 border border-amber-500/80 shadow-2xl text-amber-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-2 animate-bounce">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-          level stopped (cursor in header) • return to container to play again
+          level stopped
+        </div>
+      )}
+
+      {justResumedPlay && (
+        <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none px-4 py-1.5 rounded-full bg-neutral-900/95 border border-lime-500/80 shadow-2xl text-lime-300 font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-2 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-lime-400 animate-pulse" />
+          play
         </div>
       )}
 
@@ -3056,21 +3143,40 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2.5 mb-6">
-              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
-                <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
-                  {score.toLocaleString()}
-                </span>
-              </div>
-              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
-                  <Cookie className="w-4 h-4 text-amber-400" />
-                  +{sugarCollected + 25} bonus
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const isLevelRated =
+                level.isRated !== false &&
+                !(level as any).isVerification &&
+                (level as any).customData?.difficulty !== 'Unrated' &&
+                level.difficulty !== ('Unrated' as any);
+              return (
+                <div className="grid grid-cols-2 gap-2.5 mb-6">
+                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
+                      {score.toLocaleString()}
+                    </span>
+                    {!isLevelRated && (
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                        unrated (not added to acc)
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
+                      <Cookie className="w-4 h-4 text-amber-400" />
+                      {isLevelRated ? `+${sugarCollected + 25} bonus` : '+0 (unrated)'}
+                    </span>
+                    {!isLevelRated && (
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                        unrated (not added to acc)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="space-y-2.5">
               <button

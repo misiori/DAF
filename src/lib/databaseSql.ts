@@ -362,4 +362,79 @@ SET creator_id = p.id::text
 FROM public.profiles p
 WHERE LOWER(TRIM(c.creator_username)) = LOWER(TRIM(p.username))
   AND c.creator_id != p.id::text;
+
+-- Automatically propagate username updates to all custom levels created by the user
+CREATE OR REPLACE FUNCTION public.sync_creator_username_on_profile_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.username IS DISTINCT FROM OLD.username THEN
+    UPDATE public.custom_levels
+    SET creator_username = NEW.username,
+        updated_at = NOW()
+    WHERE creator_id = NEW.id::text;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_sync_creator_username ON public.profiles;
+CREATE TRIGGER trigger_sync_creator_username
+  AFTER UPDATE OF username ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_creator_username_on_profile_update();
+
+-- ===============================================================
+-- 12. LEADERBOARD RANKING FUNCTION & VIEW (Place in top)
+-- Calculate player rank based on total points (high scores + bonus points)
+-- ===============================================================
+
+CREATE OR REPLACE VIEW public.leaderboard_rankings AS
+WITH calculated_scores AS (
+  SELECT
+    p.id,
+    p.username,
+    p.email,
+    p.avatar_url,
+    p.active_skin,
+    p.sugar_cubes,
+    COALESCE(p.bonus_pts, 0) AS bonus_pts,
+    COALESCE((
+      SELECT SUM((val.value)::numeric)
+      FROM jsonb_each_text(p.high_scores) AS val
+      WHERE val.value ~ '^[0-9]+$'
+    ), 0) + COALESCE(p.bonus_pts, 0) AS total_pts,
+    COALESCE(cardinality(p.beaten_levels), 0) AS levels_cleared,
+    p.created_at
+  FROM public.profiles p
+)
+SELECT
+  id,
+  username,
+  email,
+  avatar_url,
+  active_skin,
+  sugar_cubes,
+  bonus_pts,
+  total_pts,
+  levels_cleared,
+  RANK() OVER (ORDER BY total_pts DESC, created_at ASC) AS rank_position
+FROM calculated_scores;
+
+-- RPC function to get a specific user's place in top
+CREATE OR REPLACE FUNCTION public.get_player_rank(p_user_id UUID)
+RETURNS TABLE (
+  rank_position BIGINT,
+  total_pts NUMERIC,
+  levels_cleared INT
+)
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT
+    lr.rank_position,
+    lr.total_pts,
+    lr.levels_cleared::INT
+  FROM public.leaderboard_rankings lr
+  WHERE lr.id = p_user_id;
+$$;
 `;

@@ -1,4 +1,4 @@
-import { LevelConfig, PlayerProfile, AntFormation } from '../types/game';
+import { LevelConfig, PlayerProfile, AntFormation, CustomPowerUpPlacement, CustomSpeedPortalPlacement } from '../types/game';
 import { supabase, supabaseAdmin, isMisioriUser } from './supabase';
 
 export interface CustomAnthillPlacement {
@@ -21,6 +21,10 @@ export interface PowerUpChances {
   honeyTraps: number;  // 0 to 100%
   nukeBomb: number;    // 0 to 100%
   freezeBomb: number;  // 0 to 100%
+  speed05?: number;    // 0 to 100% for 0.5x speed portal
+  speed10?: number;    // 0 to 100% for 1.0x speed portal
+  speed15?: number;    // 0 to 100% for 1.5x speed portal
+  speed20?: number;    // 0 to 100% for 2.0x speed portal
   formations?: AntFormation[];
 }
 
@@ -41,6 +45,7 @@ export interface CustomLevel {
   creatorAvatarUrl?: string;
   themeColor: string;
   bgColor?: string;
+  bgImage?: string;
   anthills: CustomAnthillPlacement[];
   cocoons: CustomCocoonPlacement[];
   bossCount: number;
@@ -51,6 +56,8 @@ export interface CustomLevel {
   published: boolean;
   plays: number;
   formations?: AntFormation[];
+  customPowerUps?: CustomPowerUpPlacement[];
+  customSpeedPortals?: CustomSpeedPortalPlacement[];
   createdAt: string;
   updatedAt: string;
 }
@@ -156,7 +163,7 @@ export function getCustomLevelHighScore(profile: PlayerProfile, lvl: CustomLevel
 /**
  * Get locally stored community levels cache
  */
-function getLocalCommunityCache(): CustomLevel[] {
+export function getLocalCommunityCache(): CustomLevel[] {
   try {
     const raw = localStorage.getItem(LOCAL_COMMUNITY_CACHE_KEY);
     if (raw) {
@@ -171,6 +178,45 @@ function getLocalCommunityCache(): CustomLevel[] {
     console.warn('Error reading community cache', e);
   }
   return [];
+}
+
+/**
+ * Returns all known custom levels from cache, drafts, and saved chambers
+ */
+export function getAllKnownCustomLevels(): CustomLevel[] {
+  const map = new Map<string, CustomLevel>();
+  try {
+    getLocalCommunityCache().forEach((lvl) => {
+      if (lvl && lvl.id) map.set(lvl.id, lvl);
+    });
+    // Check saved chambers
+    const rawSaved = localStorage.getItem(LOCAL_SAVED_CHAMBERS_KEY);
+    if (rawSaved) {
+      const ids: string[] = JSON.parse(rawSaved);
+      if (Array.isArray(ids)) {
+        // Cached entries
+        ids.forEach((id) => {
+          if (!map.has(id)) {
+            const hit = getLocalCommunityCache().find((l) => l.id === id);
+            if (hit) map.set(hit.id, hit);
+          }
+        });
+      }
+    }
+    // Check user drafts
+    const rawDrafts = localStorage.getItem('ant_draft_levels_v2');
+    if (rawDrafts) {
+      const drafts = JSON.parse(rawDrafts);
+      if (Array.isArray(drafts)) {
+        drafts.forEach((d: any) => {
+          if (d && d.id && !map.has(d.id)) map.set(d.id, d);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('getAllKnownCustomLevels error', e);
+  }
+  return Array.from(map.values());
 }
 
 /**
@@ -724,6 +770,73 @@ export async function renameCustomLevel(
 }
 
 /**
+ * When a user changes their username, update creator_username across all their created levels
+ * (in database, local user drafts, and community cache) so levels display the new username.
+ */
+export async function updateCreatorUsernameInAllLevels(
+  creatorId: string,
+  newUsername: string
+): Promise<void> {
+  if (!creatorId || creatorId === 'guest' || creatorId.startsWith('guest_')) {
+    return;
+  }
+
+  const clean = newUsername.trim();
+  if (!clean) return;
+
+  try {
+    // 1. Update Supabase custom_levels table
+    await supabaseAdmin
+      .from('custom_levels')
+      .update({
+        creator_username: clean,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('creator_id', creatorId);
+  } catch (e) {
+    console.warn('updateCreatorUsernameInAllLevels remote update error', e);
+  }
+
+  try {
+    // 2. Update community levels local cache
+    const cached = getLocalCommunityCache();
+    let cacheChanged = false;
+    const updatedCache = cached.map((lvl) => {
+      if (lvl.creatorId === creatorId) {
+        cacheChanged = true;
+        return { ...lvl, creatorUsername: clean };
+      }
+      return lvl;
+    });
+    if (cacheChanged) {
+      saveLocalCommunityCache(updatedCache);
+    }
+  } catch (e) {
+    console.warn('updateCreatorUsernameInAllLevels cache update error', e);
+  }
+
+  try {
+    // 3. Update player's own local drafts list
+    const userKey = `ant_farm_levels_${creatorId}`;
+    const raw = localStorage.getItem(userKey);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        const updatedList = list.map((lvl: CustomLevel) => {
+          if (!lvl.creatorId || lvl.creatorId === creatorId) {
+            return { ...lvl, creatorUsername: clean };
+          }
+          return lvl;
+        });
+        localStorage.setItem(userKey, JSON.stringify(updatedList));
+      }
+    }
+  } catch (e) {
+    console.warn('updateCreatorUsernameInAllLevels user drafts update error', e);
+  }
+}
+
+/**
  * ONLY @misiori can rate a level difficulty!
  */
 export async function rateLevelDifficulty(
@@ -830,6 +943,8 @@ export function customLevelToLevelConfig(
     Crazy: '#f43f5e',
   };
 
+  const isRated = !effectiveVerification && custom.difficulty !== 'Unrated' && custom.difficulty !== undefined;
+
   return {
     id: numId,
     name: custom.name,
@@ -842,6 +957,7 @@ export function customLevelToLevelConfig(
     durationSeconds: custom.durationSeconds || 40,
     themeColor: custom.themeColor || '#38bdf8',
     bgColor: custom.bgColor || '#090a0f',
+    bgImage: custom.bgImage,
     description: `by ${custom.creatorUsername} • ${custom.anthills.length} anthills, ${custom.cocoons.length} cocoons, ${custom.bossCount} bosses`,
     spawnerCount: Math.max(1, custom.anthills.length),
     maxAnts: 80,
@@ -853,6 +969,11 @@ export function customLevelToLevelConfig(
       (Array.isArray(custom.formations) && custom.formations.length > 0 ? custom.formations : null) ||
       (custom.powerUpChances && Array.isArray((custom.powerUpChances as any).formations) && (custom.powerUpChances as any).formations.length > 0 ? (custom.powerUpChances as any).formations : null) ||
       ['direct'],
+    isRated,
+    isCustom: true,
+    customLevelId: custom.id,
+    customPowerUps: custom.customPowerUps || [],
+    customSpeedPortals: custom.customSpeedPortals || [],
     customData: {
       ...custom,
       formations:

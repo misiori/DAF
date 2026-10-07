@@ -17,6 +17,10 @@ import {
   Info,
   Monitor,
   Check,
+  Image as ImageIcon,
+  Bomb,
+  Snowflake,
+  X,
 } from 'lucide-react';
 import {
   CustomLevel,
@@ -29,7 +33,7 @@ import {
   publishCustomLevel,
   isMobileDevice,
 } from '../lib/customLevels';
-import { PlayerProfile, AntFormation } from '../types/game';
+import { PlayerProfile, AntFormation, CustomPowerUpPlacement, CustomSpeedPortalPlacement, SpeedMultiplier } from '../types/game';
 import { sound } from '../lib/audio';
 
 interface LevelEditorProps {
@@ -52,6 +56,9 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   );
   const [name, setName] = useState(initialLevel?.name || 'my chamber');
   const [themeColor, setThemeColor] = useState(initialLevel?.themeColor || '#38bdf8');
+  const [bgImage, setBgImage] = useState<string | undefined>(initialLevel?.bgImage);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [anthills, setAnthills] = useState<CustomAnthillPlacement[]>(
     initialLevel?.anthills || [
       { id: 1, xFrac: 0.3, yFrac: 0.4, type: 'standard', hp: 3 },
@@ -61,6 +68,13 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const [cocoons, setCocoons] = useState<CustomCocoonPlacement[]>(
     initialLevel?.cocoons || [{ id: 1, xFrac: 0.5, yFrac: 0.3, hp: 6 }]
   );
+  const [customPowerUps, setCustomPowerUps] = useState<CustomPowerUpPlacement[]>(
+    initialLevel?.customPowerUps || []
+  );
+  const [customSpeedPortals, setCustomSpeedPortals] = useState<CustomSpeedPortalPlacement[]>(
+    initialLevel?.customSpeedPortals || []
+  );
+
   const [bossCount, setBossCount] = useState<number>(initialLevel?.bossCount ?? 1);
   const [powerUpChances, setPowerUpChances] = useState<PowerUpChances>(
     initialLevel?.powerUpChances || {
@@ -68,6 +82,10 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       honeyTraps: 50,
       nukeBomb: 40,
       freezeBomb: 40,
+      speed05: 50,
+      speed10: 50,
+      speed15: 50,
+      speed20: 50,
     }
   );
   const [durationSeconds, setDurationSeconds] = useState<number>(
@@ -101,9 +119,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     setVerified(false); // modifying movement directions changes gameplay difficulty -> re-verify
   };
 
-  // Editor placement tool
-  const [activeTool, setActiveTool] = useState<'anthill' | 'cocoon' | 'erase'>('anthill');
-  const [anthillType, setAnthillType] = useState<'standard' | 'fire' | 'acid'>('standard');
+  // Editor placement tool: anthill, cocoon, powerup, portal, erase
+  const [activeTool, setActiveTool] = useState<'anthill' | 'cocoon' | 'powerup' | 'portal' | 'erase'>('anthill');
+  const [powerUpType, setPowerUpType] = useState<'nuke_bomb' | 'emp_bomb' | 'honey_trap'>('nuke_bomb');
+  const [portalSpeed, setPortalSpeed] = useState<SpeedMultiplier>(1.5);
+
   const [publishing, setPublishing] = useState(false);
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -119,8 +139,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     creatorAvatarUrl: profile.avatar_url,
     themeColor,
     bgColor: '#090a0f',
+    bgImage,
     anthills,
     cocoons,
+    customPowerUps,
+    customSpeedPortals,
     bossCount,
     powerUpChances: {
       ...powerUpChances,
@@ -136,7 +159,25 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     updatedAt: new Date().toISOString(),
   });
 
-  // Handle click on the interactive placement arena
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setPublishError('image too large (max 5MB)');
+      setTimeout(() => setPublishError(null), 3000);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setBgImage(dataUrl);
+      setVerified(false);
+      sound.playClick();
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle click on the interactive placement arena (no limit on anthills, cocoons, powerups, or portals)
   const handleArenaClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!arenaRef.current) return;
     const rect = arenaRef.current.getBoundingClientRect();
@@ -159,7 +200,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
         const updated = [...anthills];
         updated.splice(hitHillIdx, 1);
         setAnthills(updated);
-        setVerified(false); // changing layout requires re-verification
+        setVerified(false);
         return;
       }
       const hitCocoonIdx = cocoons.findIndex(
@@ -173,29 +214,42 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
         setVerified(false);
         return;
       }
+      const hitPowerUpIdx = customPowerUps.findIndex(
+        (p) => Math.hypot(p.xFrac - xFrac, p.yFrac - yFrac) < 0.08
+      );
+      if (hitPowerUpIdx >= 0) {
+        sound.playZap();
+        const updated = [...customPowerUps];
+        updated.splice(hitPowerUpIdx, 1);
+        setCustomPowerUps(updated);
+        setVerified(false);
+        return;
+      }
+      const hitPortalIdx = customSpeedPortals.findIndex(
+        (p) => Math.hypot(p.xFrac - xFrac, p.yFrac - yFrac) < 0.08
+      );
+      if (hitPortalIdx >= 0) {
+        sound.playZap();
+        const updated = [...customSpeedPortals];
+        updated.splice(hitPortalIdx, 1);
+        setCustomSpeedPortals(updated);
+        setVerified(false);
+        return;
+      }
       return;
     }
 
     if (activeTool === 'anthill') {
-      if (anthills.length >= 8) {
-        sound.playHitSound();
-        return;
-      }
       sound.playClick();
       const newHill: CustomAnthillPlacement = {
         id: Date.now() + Math.floor(Math.random() * 1000),
         xFrac,
         yFrac,
-        type: anthillType,
         hp: 3,
       };
       setAnthills([...anthills, newHill]);
       setVerified(false);
     } else if (activeTool === 'cocoon') {
-      if (cocoons.length >= 4) {
-        sound.playHitSound();
-        return;
-      }
       sound.playClick();
       const newCocoon: CustomCocoonPlacement = {
         id: Date.now() + Math.floor(Math.random() * 1000),
@@ -204,6 +258,26 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
         hp: 6,
       };
       setCocoons([...cocoons, newCocoon]);
+      setVerified(false);
+    } else if (activeTool === 'powerup') {
+      sound.playClick();
+      const newPowerUp: CustomPowerUpPlacement = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        xFrac,
+        yFrac,
+        type: powerUpType,
+      };
+      setCustomPowerUps([...customPowerUps, newPowerUp]);
+      setVerified(false);
+    } else if (activeTool === 'portal') {
+      sound.playClick();
+      const newPortal: CustomSpeedPortalPlacement = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        xFrac,
+        yFrac,
+        targetSpeed: portalSpeed,
+      };
+      setCustomSpeedPortals([...customSpeedPortals, newPortal]);
       setVerified(false);
     }
   };
@@ -341,67 +415,129 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
         {/* Left Column: Interactive Arena Canvas (7 cols) */}
         <div className="lg:col-span-7 flex flex-col bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4 lg:sticky lg:top-14 h-[440px] sm:h-[500px] lg:h-[calc(100vh-5.25rem)] min-h-[380px]">
           {/* Tool Selector Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2 border-b border-neutral-800/80 shrink-0">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2.5 mb-2 border-b border-neutral-800/80 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Anthill Tool */}
               <button
                 onClick={() => {
                   sound.playClick();
                   setActiveTool('anthill');
                 }}
-                className={`px-3 py-1 rounded-xl font-['Patrick_Hand'] text-sm lowercase flex items-center gap-1.5 cursor-pointer border transition-all ${
+                className={`px-2.5 py-1 rounded-xl font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
                   activeTool === 'anthill'
                     ? 'bg-neutral-100 text-neutral-950 font-bold border-white'
                     : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
                 }`}
               >
-                <span>+ anthill ({anthills.length}/8)</span>
+                <span>+ anthill ({anthills.length})</span>
               </button>
 
-              {activeTool === 'anthill' && (
-                <div className="flex items-center gap-1 pl-1">
-                  {(['standard', 'fire', 'acid'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        sound.playClick();
-                        setAnthillType(t);
-                      }}
-                      className={`px-2 py-0.5 rounded-lg text-xs font-['Patrick_Hand'] lowercase border ${
-                        anthillType === t
-                          ? t === 'fire'
-                            ? 'bg-rose-500/20 text-rose-300 border-rose-500'
-                            : t === 'acid'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500'
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500'
-                          : 'bg-neutral-900/60 text-neutral-500 border-neutral-800'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              )}
-
+              {/* Cocoon Tool */}
               <button
                 onClick={() => {
                   sound.playClick();
                   setActiveTool('cocoon');
                 }}
-                className={`px-3 py-1 rounded-xl font-['Patrick_Hand'] text-sm lowercase flex items-center gap-1.5 cursor-pointer border transition-all ${
+                className={`px-2.5 py-1 rounded-xl font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
                   activeTool === 'cocoon'
                     ? 'bg-rose-500 text-white font-bold border-rose-400'
                     : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
                 }`}
               >
-                <span>+ cocoon ({cocoons.length}/4)</span>
+                <span>+ cocoon ({cocoons.length})</span>
               </button>
 
+              {/* Power-Up Manual Placement Tool */}
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setActiveTool('powerup');
+                }}
+                className={`px-2.5 py-1 rounded-xl font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
+                  activeTool === 'powerup'
+                    ? 'bg-amber-400 text-neutral-950 font-bold border-amber-300'
+                    : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>+ power-up ({customPowerUps.length})</span>
+              </button>
+
+              {activeTool === 'powerup' && (
+                <div className="flex items-center gap-1">
+                  {(['nuke_bomb', 'emp_bomb', 'honey_trap'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        sound.playClick();
+                        setPowerUpType(t);
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-xs font-['Patrick_Hand'] lowercase border ${
+                        powerUpType === t
+                          ? t === 'nuke_bomb'
+                            ? 'bg-red-500/20 text-red-300 border-red-500'
+                            : t === 'emp_bomb'
+                            ? 'bg-sky-500/20 text-sky-300 border-sky-500'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500'
+                          : 'bg-neutral-900/60 text-neutral-500 border-neutral-800'
+                      }`}
+                    >
+                      {t === 'nuke_bomb' ? 'nuke' : t === 'emp_bomb' ? 'freeze emp' : 'honey trap'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Speed Portal Manual Placement Tool */}
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setActiveTool('portal');
+                }}
+                className={`px-2.5 py-1 rounded-xl font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
+                  activeTool === 'portal'
+                    ? 'bg-cyan-400 text-neutral-950 font-bold border-cyan-300'
+                    : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>+ speed portal ({customSpeedPortals.length})</span>
+              </button>
+
+              {activeTool === 'portal' && (
+                <div className="flex items-center gap-1">
+                  {([0.5, 1.0, 1.5, 2.0] as SpeedMultiplier[]).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        sound.playClick();
+                        setPortalSpeed(s);
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-xs font-['Patrick_Hand'] lowercase border ${
+                        portalSpeed === s
+                          ? s === 0.5
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500 font-bold'
+                            : s === 1.0
+                            ? 'bg-sky-500/20 text-sky-300 border-sky-500 font-bold'
+                            : s === 1.5
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500 font-bold'
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500 font-bold'
+                          : 'bg-neutral-900/60 text-neutral-500 border-neutral-800'
+                      }`}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Erase Tool */}
               <button
                 onClick={() => {
                   sound.playClick();
                   setActiveTool('erase');
                 }}
-                className={`px-2.5 py-1 rounded-xl font-['Patrick_Hand'] text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
+                className={`px-2 py-1 rounded-xl font-['Patrick_Hand'] text-xs sm:text-sm lowercase flex items-center gap-1 cursor-pointer border transition-all ${
                   activeTool === 'erase'
                     ? 'bg-red-500/20 text-red-300 border-red-400 font-bold'
                     : 'bg-neutral-900 text-neutral-500 border-neutral-800 hover:text-white'
@@ -418,6 +554,8 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 sound.playClick();
                 setAnthills([]);
                 setCocoons([]);
+                setCustomPowerUps([]);
+                setCustomSpeedPortals([]);
                 setVerified(false);
               }}
               className="text-xs font-['Patrick_Hand'] text-neutral-500 hover:text-rose-400 lowercase cursor-pointer"
@@ -436,6 +574,15 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               boxShadow: `0 0 25px ${themeColor}25 inset`,
             }}
           >
+            {/* Custom Uploaded Background Image */}
+            {bgImage && (
+              <img
+                src={bgImage}
+                alt="arena bg"
+                className="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
+              />
+            )}
+
             {/* Grid overlay */}
             <div
               className="absolute inset-0 opacity-15 pointer-events-none"
@@ -478,7 +625,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                   />
                 </div>
                 <span className="text-[10px] font-['Patrick_Hand'] text-neutral-300 bg-black/70 px-1 rounded mt-0.5 lowercase whitespace-nowrap">
-                  hill #{i + 1} ({hill.type})
+                  hill #{i + 1}
                 </span>
               </div>
             ))}
@@ -501,22 +648,130 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 </span>
               </div>
             ))}
+
+            {/* Placed Custom Power-Ups */}
+            {customPowerUps.map((p, i) => (
+              <div
+                key={p.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none group"
+                style={{
+                  left: `${p.xFrac * 100}%`,
+                  top: `${p.yFrac * 100}%`,
+                }}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-md ${
+                    p.type === 'nuke_bomb'
+                      ? 'bg-red-500/20 border-red-400 text-red-300 shadow-red-950/40'
+                      : p.type === 'emp_bomb'
+                      ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sky-950/40'
+                      : 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-amber-950/40'
+                  }`}
+                >
+                  {p.type === 'nuke_bomb' ? (
+                    <Bomb className="w-4 h-4" />
+                  ) : p.type === 'emp_bomb' ? (
+                    <Snowflake className="w-4 h-4" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                </div>
+                <span className="text-[9px] font-['Patrick_Hand'] text-neutral-300 bg-black/80 px-1 rounded mt-0.5 lowercase whitespace-nowrap">
+                  {p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'emp' : 'honey'}
+                </span>
+              </div>
+            ))}
+
+            {/* Placed Custom Speed Portals */}
+            {customSpeedPortals.map((sp) => (
+              <div
+                key={sp.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none"
+                style={{
+                  left: `${sp.xFrac * 100}%`,
+                  top: `${sp.yFrac * 100}%`,
+                }}
+              >
+                <div
+                  className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center font-['Patrick_Hand'] text-xs font-bold shadow-lg ${
+                    sp.targetSpeed === 0.5
+                      ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                      : sp.targetSpeed === 1.0
+                      ? 'bg-sky-500/25 border-sky-400 text-sky-300'
+                      : sp.targetSpeed === 1.5
+                      ? 'bg-amber-500/25 border-amber-400 text-amber-300'
+                      : 'bg-rose-500/25 border-rose-400 text-rose-300'
+                  }`}
+                >
+                  {sp.targetSpeed}x
+                </div>
+                <span className="text-[9px] font-['Patrick_Hand'] text-neutral-300 bg-black/80 px-1 rounded mt-0.5 lowercase">
+                  portal
+                </span>
+              </div>
+            ))}
           </div>
 
           <div className="pt-2 text-xs font-['Patrick_Hand'] text-neutral-400 flex items-center justify-between lowercase shrink-0">
             <span>
-              tip: select tool then tap inside the box to place or erase elements
+              tip: tap inside box to place items • unlimited anthills & cocoons allowed
             </span>
             <span className="text-neutral-500">
-              {anthills.length} hills • {cocoons.length} cocoons
+              {anthills.length} hills • {cocoons.length} cocoons • {customPowerUps.length} power-ups • {customSpeedPortals.length} portals
             </span>
           </div>
         </div>
 
         {/* Right Column: Settings, Theme Color, Power-Up Chances, Boss Count (5 cols) */}
         <div className="lg:col-span-5 flex flex-col bg-neutral-950/70 border border-neutral-800 rounded-3xl p-3 sm:p-4 space-y-4">
-          {/* Theme Color Picker */}
+          {/* Custom Uploaded Background Image Section */}
           <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-sky-400" />
+                chamber background image
+              </span>
+              {bgImage && (
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setBgImage(undefined);
+                    setVerified(false);
+                  }}
+                  className="text-xs font-['Patrick_Hand'] text-rose-400 hover:text-rose-300 lowercase cursor-pointer"
+                >
+                  remove image
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  fileInputRef.current?.click();
+                }}
+                className="flex-1 py-2 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 font-['Patrick_Hand'] text-xs lowercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <Upload className="w-3.5 h-3.5 text-neutral-400" />
+                <span>{bgImage ? 'change background image' : 'upload background image'}</span>
+              </button>
+              {bgImage && (
+                <div className="w-9 h-9 rounded-lg border border-neutral-700 overflow-hidden shrink-0 bg-neutral-900">
+                  <img src={bgImage} alt="bg" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Theme Color Picker */}
+          <div className="pt-2 border-t border-neutral-800/80">
             <label className="text-sm font-['Patrick_Hand'] text-neutral-300 flex items-center justify-between lowercase mb-2">
               <span className="flex items-center gap-1.5">
                 <Palette className="w-4 h-4 text-cyan-400" />
@@ -589,24 +844,29 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
             </div>
           </div>
 
-          {/* Chance of Any Power-Up */}
+          {/* Chance of Any Power-Up & Individual Speed Portal Chances */}
           <div className="pt-2 border-t border-neutral-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                chance of power-ups
+                chance of power-ups & speed portals
               </span>
               <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase">
-                pods & portals
+                spawn chances
               </span>
             </div>
 
-            {/* Speed Portals */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-1">
-                <span>speed portals / arrows</span>
-                <span className="text-cyan-400 font-bold">{powerUpChances.speed}%</span>
+            {/* Individual Speed Portal Rates */}
+            <div className="space-y-1.5 bg-neutral-900/60 p-2.5 rounded-2xl border border-neutral-800/90">
+              <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-300 lowercase mb-1">
+                <span className="flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                  speed portals rate (for EVERY speed)
+                </span>
+                <span className="text-cyan-400 font-bold">{powerUpChances.speed}% overall</span>
               </div>
+
+              {/* Total Speed Portal Frequency */}
               <input
                 type="range"
                 min="0"
@@ -617,8 +877,90 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                   setPowerUpChances({ ...powerUpChances, speed: Number(e.target.value) });
                   setVerified(false);
                 }}
-                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg mb-2"
               />
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-neutral-800/70">
+                {/* 0.5x Slow */}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-['Patrick_Hand'] lowercase">
+                    <span className="text-emerald-400 font-bold">0.5x slow</span>
+                    <span className="text-neutral-400">{powerUpChances.speed05 ?? 50}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={powerUpChances.speed05 ?? 50}
+                    onChange={(e) => {
+                      setPowerUpChances({ ...powerUpChances, speed05: Number(e.target.value) });
+                      setVerified(false);
+                    }}
+                    className="w-full accent-emerald-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                  />
+                </div>
+
+                {/* 1.0x Normal */}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-['Patrick_Hand'] lowercase">
+                    <span className="text-sky-400 font-bold">1.0x normal</span>
+                    <span className="text-neutral-400">{powerUpChances.speed10 ?? 50}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={powerUpChances.speed10 ?? 50}
+                    onChange={(e) => {
+                      setPowerUpChances({ ...powerUpChances, speed10: Number(e.target.value) });
+                      setVerified(false);
+                    }}
+                    className="w-full accent-sky-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                  />
+                </div>
+
+                {/* 1.5x Fast */}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-['Patrick_Hand'] lowercase">
+                    <span className="text-amber-400 font-bold">1.5x fast</span>
+                    <span className="text-neutral-400">{powerUpChances.speed15 ?? 50}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={powerUpChances.speed15 ?? 50}
+                    onChange={(e) => {
+                      setPowerUpChances({ ...powerUpChances, speed15: Number(e.target.value) });
+                      setVerified(false);
+                    }}
+                    className="w-full accent-amber-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                  />
+                </div>
+
+                {/* 2.0x Hyper */}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-['Patrick_Hand'] lowercase">
+                    <span className="text-rose-400 font-bold">2.0x hyper</span>
+                    <span className="text-neutral-400">{powerUpChances.speed20 ?? 50}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={powerUpChances.speed20 ?? 50}
+                    onChange={(e) => {
+                      setPowerUpChances({ ...powerUpChances, speed20: Number(e.target.value) });
+                      setVerified(false);
+                    }}
+                    className="w-full accent-rose-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Honey Traps */}

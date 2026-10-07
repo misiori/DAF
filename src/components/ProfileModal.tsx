@@ -45,6 +45,9 @@ import {
   getCustomLevelProgress,
   getCustomLevelHighScore,
   clearDeviceCustomLevels,
+  getAllKnownCustomLevels,
+  getCustomLevelNumberId,
+  updateCreatorUsernameInAllLevels,
 } from '../lib/customLevels';
 import { SkinRenderer, getSkinById } from './SkinRenderer';
 import { LEVELS, DIFFICULTY_COLORS } from '../lib/constants';
@@ -240,12 +243,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       username: trimmed,
     };
     onProfileUpdated(updated);
+    // Also update creator_username on all levels created by this user
+    updateCreatorUsernameInAllLevels(currentProfile.id, trimmed);
     setEditingUsername(false);
     setUsernameSaving(false);
     sound.playVictory();
   };
 
   const isLoggedIn = currentProfile.id !== 'guest' && !currentProfile.id.startsWith('guest_');
+
+  // Load Leaderboard on mount so place in top is readily available
+  useEffect(() => {
+    fetchLeaderboard().then((data) => {
+      if (data && data.length > 0) {
+        setLeaderboard(data);
+      }
+    });
+  }, []);
 
   // Calculate total PTS for current profile including daily challenge bonus points
   const bonusPts = currentProfile.bonus_pts || 0;
@@ -255,19 +269,68 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   );
   const totalPts = highScoresPts + bonusPts;
 
-  // Calculate levels beaten by difficulty (ONLY chambers beaten 100% till the end)
+  // Calculate user's place in the top (Leaderboard rank)
+  const userRank = (() => {
+    if (!leaderboard || leaderboard.length === 0) return 1;
+    const idx = leaderboard.findIndex(
+      (p) => p.id === currentProfile.id || p.username.toLowerCase() === currentProfile.username.toLowerCase()
+    );
+    if (idx !== -1) return idx + 1;
+    const higher = leaderboard.filter((p) => p.total_pts > totalPts).length;
+    return higher + 1;
+  })();
+
+  // Calculate levels beaten by difficulty (BOTH official chambers AND custom user chambers)
+  const knownCustoms = getAllKnownCustomLevels();
   const beatenNumList = (currentProfile.beaten_levels || []).map(Number);
   const difficulties = ['Easy', 'Normal', 'Hard', 'Harder', 'Insane', 'Crazy'] as const;
+
   const statsByDiff = difficulties.map((diff) => {
-    const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
-    const beatenCount = lvlsInDiff.filter((l) => {
-      if (beatenNumList.includes(Number(l.id))) return true;
+    const diffLower = diff.toLowerCase();
+    const lvlsInDiff = LEVELS.filter((l) => l.difficulty.toLowerCase() === diffLower);
+    const beatenOfficialIds = new Set<number>();
+    lvlsInDiff.forEach((l) => {
       const prog = currentProfile.level_progress?.[l.id] ?? currentProfile.level_progress?.[String(l.id)] ?? 0;
-      return Number(prog) >= 100;
-    }).length;
+      if (beatenNumList.includes(Number(l.id)) || Number(prog) >= 100) {
+        beatenOfficialIds.add(Number(l.id));
+      }
+    });
+
+    const beatenCustomKeys = new Set<string>();
+
+    // 1. From recorded beaten_level_details
+    if (currentProfile.beaten_level_details) {
+      Object.entries(currentProfile.beaten_level_details).forEach(([key, val]) => {
+        if (val && val.difficulty && val.difficulty.toLowerCase() === diffLower) {
+          const numKey = Number(key);
+          if (isNaN(numKey) || numKey > 100) {
+            beatenCustomKeys.add(String(key));
+          }
+        }
+      });
+    }
+
+    // 2. From all known custom levels
+    knownCustoms.forEach((cl) => {
+      if (cl.difficulty && cl.difficulty.toLowerCase() === diffLower) {
+        const numId = getCustomLevelNumberId(cl.id);
+        const prog = Math.max(
+          Number(currentProfile.level_progress?.[numId]) || 0,
+          Number(currentProfile.level_progress?.[String(numId)]) || 0,
+          Number(currentProfile.level_progress?.[cl.id]) || 0
+        );
+        if (beatenNumList.includes(numId) || prog >= 100) {
+          beatenCustomKeys.add(String(numId));
+        }
+      }
+    });
+
+    const totalBeatenForDiff = beatenOfficialIds.size + beatenCustomKeys.size;
     return {
       difficulty: diff,
-      beaten: beatenCount,
+      beaten: totalBeatenForDiff,
+      officialBeaten: beatenOfficialIds.size,
+      customBeaten: beatenCustomKeys.size,
       total: lvlsInDiff.length,
       color: DIFFICULTY_COLORS[diff] || '#3b82f6',
     };
@@ -537,10 +600,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </span>
                 )}
               </div>
-              {/* Shows the pts quantity under the name instead of skin name */}
-              <p className="text-base font-['Patrick_Hand'] text-neutral-300 mt-1 leading-none">
-                {viewedPlayerPts.toLocaleString()}
-              </p>
+              {/* Shows rank in top and pts quantity */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-['Patrick_Hand'] text-amber-300 font-bold flex items-center gap-0.5 lowercase">
+                  <Trophy className="w-3 h-3 text-amber-400" />
+                  {(() => {
+                    if (!leaderboard || leaderboard.length === 0) return '#1 in top';
+                    const idx = leaderboard.findIndex(
+                      (p) => p.id === viewedPlayer.id || p.username.toLowerCase() === viewedPlayer.username.toLowerCase()
+                    );
+                    if (idx !== -1) return `#${idx + 1} in top`;
+                    const higher = leaderboard.filter((p) => p.total_pts > viewedPlayerPts).length;
+                    return `#${higher + 1} in top`;
+                  })()}
+                </span>
+                <span className="text-neutral-500 text-xs">•</span>
+                <p className="text-sm font-['Patrick_Hand'] text-neutral-300 leading-none">
+                  {viewedPlayerPts.toLocaleString()} pts
+                </p>
+              </div>
             </div>
           </div>
 
@@ -562,26 +640,40 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
             <span>chambers beaten</span>
             <span className="text-sm font-['Patrick_Hand'] font-bold text-white">
-              {
-                LEVELS.filter((l) => {
-                  const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
-                  return (
-                    beatenSet.has(l.id) ||
-                    (viewedPlayer.level_progress?.[l.id] || 0) >= 100
-                  );
-                }).length
-              }
+              {(() => {
+                const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
+                const officialCount = LEVELS.filter(
+                  (l) => beatenSet.has(l.id) || (viewedPlayer.level_progress?.[l.id] || 0) >= 100
+                ).length;
+                let customCount = 0;
+                knownCustoms.forEach((cl) => {
+                  const numId = getCustomLevelNumberId(cl.id);
+                  if (beatenSet.has(numId) || (viewedPlayer.level_progress?.[numId] || 0) >= 100) {
+                    customCount++;
+                  }
+                });
+                return officialCount + customCount;
+              })()}
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {difficulties.map((diff) => {
-              const lvlsInDiff = LEVELS.filter((l) => l.difficulty === diff);
+              const diffLower = diff.toLowerCase();
+              const lvlsInDiff = LEVELS.filter((l) => l.difficulty.toLowerCase() === diffLower);
               const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
-              const beaten = lvlsInDiff.filter(
-                (l) =>
-                  beatenSet.has(l.id) ||
-                  (viewedPlayer.level_progress?.[l.id] || 0) >= 100
+              const officialBeaten = lvlsInDiff.filter(
+                (l) => beatenSet.has(l.id) || (viewedPlayer.level_progress?.[l.id] || 0) >= 100
               ).length;
+              let customBeaten = 0;
+              knownCustoms.forEach((cl) => {
+                if (cl.difficulty && cl.difficulty.toLowerCase() === diffLower) {
+                  const numId = getCustomLevelNumberId(cl.id);
+                  if (beatenSet.has(numId) || (viewedPlayer.level_progress?.[numId] || 0) >= 100) {
+                    customBeaten++;
+                  }
+                }
+              });
+              const totalBeaten = officialBeaten + customBeaten;
               return (
                 <div
                   key={diff}
@@ -594,7 +686,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     {diff.toLowerCase()}
                   </div>
                   <div className="text-sm font-['Patrick_Hand'] font-bold text-white">
-                    {beaten}
+                    {totalBeaten}
                   </div>
                 </div>
               );
@@ -956,8 +1048,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   )}
                 </div>
 
-                {/* Stats Row: active skin, sugar, pts */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-neutral-800/80">
+                {/* Stats Row: active skin, sugar, pts, place in top */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-neutral-800/80">
                   <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
                     <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">active skin</span>
                     <span className="text-xs font-['Patrick_Hand'] lowercase" style={{ color: activeSkin.color }}>
@@ -973,11 +1065,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   </div>
 
-                  <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
+                  <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
                     <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">points</span>
                     <span className="text-xs font-['Patrick_Hand'] text-neutral-200 flex items-center gap-1 lowercase">
                       <Award className="w-3.5 h-3.5" />
                       {totalPts.toLocaleString()} pts
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">place in top</span>
+                    <span className="text-xs font-['Patrick_Hand'] text-amber-300 font-bold flex items-center gap-1 lowercase">
+                      <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                      #{userRank} in top
                     </span>
                   </div>
                 </div>
