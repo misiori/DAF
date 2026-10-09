@@ -18,7 +18,7 @@ import { getSkinById } from './SkinRenderer';
 import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
-import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
+import { RotateCcw, Box, Shield, Zap, Sparkles } from 'lucide-react';
 import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations, isLevelRated } from '../lib/customLevels';
 
 // === HANDWRITTEN FONT CONSTANTS ===
@@ -1276,7 +1276,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         radius: 20,
         type: p.type,
         pulse: 0,
-        label: p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'emp pod' : 'honey',
+        label: p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'freeze' : 'honey',
       });
     });
 
@@ -1306,7 +1306,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         radius: 20,
         type: 'emp_bomb',
         pulse: 0,
-        label: 'emp pod',
+        label: 'freeze',
       });
     } else if (mech === 'sugar_geysers' || mech === 'acid_geysers') {
       initialPods.push({
@@ -2406,7 +2406,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.beginPath();
         ctx.rect(BOX_LEFT, BOX_TOP, BOX_RIGHT - BOX_LEFT, BOX_BOTTOM - BOX_TOP);
         ctx.clip();
-        ctx.globalAlpha = 0.50;
+        ctx.globalAlpha = (level.bgOpacity ?? 50) / 100;
         ctx.drawImage(bgImageElementRef.current, BOX_LEFT, BOX_TOP, BOX_RIGHT - BOX_LEFT, BOX_BOTTOM - BOX_TOP);
         ctx.restore();
       }
@@ -2834,7 +2834,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
           {(level as any).isVerification && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border border-amber-500/60 bg-amber-500/15 font-['Patrick_Hand'] text-xs text-amber-300 lowercase">
-              <span>verification mode • survive 100% without noclip</span>
+              <span>verification</span>
             </div>
           )}
 
@@ -3030,8 +3030,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   </div>
                   <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
                     <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                    <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
-                      <Cookie className="w-4 h-4 text-amber-400" />
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-white flex items-center justify-center gap-1">
+                      <Box className="w-4 h-4 text-white" />
                       +{isRated ? sugarCollected : 0}
                     </span>
                     {!isRated && (
@@ -3099,8 +3099,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               </div>
               <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
                 <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
-                  <Cookie className="w-4 h-4 text-amber-400" />
+                <span className="text-xl font-bold font-['Patrick_Hand'] text-white flex items-center justify-center gap-1">
+                  <Box className="w-4 h-4 text-white" />
                   +0 (noclip)
                 </span>
               </div>
@@ -3184,8 +3184,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                   </div>
                   <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
                     <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                    <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
-                      <Cookie className="w-4 h-4 text-amber-400" />
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-white flex items-center justify-center gap-1">
+                      <Box className="w-4 h-4 text-white" />
                       {isRated ? `+${sugarCollected + 25} bonus` : '+0 (unrated)'}
                     </span>
                     {!isRated && (

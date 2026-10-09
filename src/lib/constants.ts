@@ -473,8 +473,8 @@ export const LEVELS: LevelConfig[] = [
     spawnerCount: 2,
     maxAnts: 42,
     mechanicId: 'emp_pods',
-    mechanicName: 'emp pods',
-    mechanicHint: 'click glowing emp orbs to freeze the entire colony for 3s',
+    mechanicName: 'freeze bombs',
+    mechanicHint: 'click glowing freeze bombs to freeze the entire colony for 3s',
   },
   {
     id: 4,

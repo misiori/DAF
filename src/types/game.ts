@@ -40,6 +40,7 @@ export interface LevelConfig {
   themeColor: string;
   bgColor: string;
   bgImage?: string;
+  bgOpacity?: number;
   description?: string;
   spawnerCount: number;
   maxAnts: number;

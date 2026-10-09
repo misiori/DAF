@@ -9,7 +9,7 @@ import {
   Search,
   Check,
   Trophy,
-  Cookie,
+  Box,
   AlertCircle,
   Sparkles,
   Award,
@@ -1009,28 +1009,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     )}
 
-                    {/* Avatar Upload / Remove Actions */}
-                    <div className="flex items-center gap-2 mt-1.5 justify-center sm:justify-start">
-                      <label className="text-[11px] font-mono text-neutral-400 hover:text-white underline cursor-pointer flex items-center gap-1">
-                        <Camera className="w-3 h-3" />
-                        {currentProfile.avatar_url ? 'change avatar' : 'upload avatar'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleAvatarUpload}
-                        />
-                      </label>
-                      {currentProfile.avatar_url && (
+                    {/* Avatar Remove Action if set */}
+                    {currentProfile.avatar_url && (
+                      <div className="flex items-center mt-1.5 justify-center sm:justify-start">
                         <button
                           onClick={handleRemoveAvatar}
-                          className="text-[11px] font-mono text-neutral-400 hover:text-rose-400 underline cursor-pointer flex items-center gap-0.5 ml-2"
+                          className="p-1 rounded-lg text-neutral-400 hover:text-rose-400 transition-colors cursor-pointer"
+                          title="remove avatar"
                         >
-                          <Trash2 className="w-3 h-3" />
-                          remove avatar
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {isLoggedIn ? (
@@ -1058,15 +1048,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
-                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar cubes</span>
-                    <span className="text-xs font-['Patrick_Hand'] text-amber-400 flex items-center gap-1 lowercase">
-                      <Cookie className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
+                    <span className="text-xs font-['Patrick_Hand'] text-white flex items-center gap-1 lowercase">
+                      <Box className="w-3.5 h-3.5 text-white" />
                       {currentProfile.sugar_cubes}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800">
-                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">points</span>
+                    <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
                     <span className="text-xs font-['Patrick_Hand'] text-neutral-200 flex items-center gap-1 lowercase">
                       <Award className="w-3.5 h-3.5" />
                       {totalPts.toLocaleString()} pts
@@ -1091,7 +1081,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   chambers beaten
                 </div>
                 <div className="font-['Patrick_Hand'] text-sm text-white font-bold lowercase">
-                  quantity: {totalChambersBeaten}
+                  {totalChambersBeaten}
                 </div>
               </div>
 
@@ -1176,14 +1166,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
 
                 {authError && (
-                  <div className="mb-3 p-2.5 rounded-xl bg-red-950/60 border border-red-800/80 text-red-400 text-xs font-mono flex items-start gap-2">
+                  <div className="mb-3 p-2.5 rounded-xl bg-red-950/60 border border-red-800/80 text-red-400 text-xs font-['Patrick_Hand'] flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{authError}</span>
                   </div>
                 )}
 
                 {authSuccessMsg && (
-                  <div className="mb-3 p-2.5 rounded-xl bg-green-950/60 border border-green-800/80 text-green-400 text-xs font-mono flex items-start gap-2">
+                  <div className="mb-3 p-2.5 rounded-xl bg-green-950/60 border border-green-800/80 text-green-400 text-xs font-['Patrick_Hand'] flex items-start gap-2">
                     <Check className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{authSuccessMsg}</span>
                   </div>
@@ -1200,7 +1190,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
                       placeholder={authMode === 'signin' ? 'enter username or email' : 'choose a username'}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-neutral-400 font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-base focus:outline-none focus:border-neutral-400 font-['Patrick_Hand']"
                     />
                   </div>
 
@@ -1215,39 +1205,39 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         value={emailInput}
                         onChange={(e) => setEmailInput(e.target.value)}
                         placeholder="you@example.com"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-blue-500 font-mono"
+                        className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-base focus:outline-none focus:border-blue-500 font-['Patrick_Hand']"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs font-mono text-neutral-400 mb-1">Password</label>
+                    <label className="block text-xs font-['Patrick_Hand'] text-neutral-400 mb-1 lowercase">password</label>
                     <input
                       type="password"
                       required
                       value={passwordInput}
                       onChange={(e) => setPasswordInput(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-sm focus:outline-none focus:border-blue-500 font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 text-base focus:outline-none focus:border-blue-500 font-['Patrick_Hand']"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold font-mono text-sm tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full mt-2 py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-bold font-['Patrick_Hand'] text-lg lowercase active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
                     {authLoading ? (
                       <span className="animate-spin">⏳</span>
                     ) : authMode === 'signin' ? (
                       <>
                         <LogIn className="w-4 h-4" />
-                        SIGN IN
+                        sign in
                       </>
                     ) : (
                       <>
                         <UserPlus className="w-4 h-4" />
-                        CREATE ACCOUNT
+                        sign up
                       </>
                     )}
                   </button>
@@ -1265,8 +1255,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             ) : (
               <>
                 <div className="flex items-center justify-between text-base font-['Patrick_Hand'] text-neutral-400 px-2 lowercase">
-                  <span>rank & player</span>
-                  <span>total pts</span>
+                  <span>player</span>
+                  <span>pts</span>
                 </div>
 
                 {loadingLeaderboard && (
@@ -1385,7 +1375,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                 {!searching && !searchQuery && (
                   <div className="text-center py-8 text-neutral-500 text-sm font-['Patrick_Hand'] lowercase">
-                    type a player's username above to view their avatar and chamber progress.
+                    search some players
                   </div>
                 )}
 

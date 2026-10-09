@@ -239,26 +239,6 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
-                        {(() => {
-                          const diffLabel =
-                            (lvl.difficulty && lvl.difficulty !== 'Unrated')
-                              ? lvl.difficulty
-                              : ((lvl.powerUpChances as any)?.difficulty || 'Normal');
-                          const diffColor = DIFFICULTY_COLORS[diffLabel] || '#38bdf8';
-                          return (
-                            <span
-                              className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border shrink-0 font-bold"
-                              style={{
-                                color: diffColor,
-                                borderColor: `${diffColor}50`,
-                                backgroundColor: `${diffColor}15`,
-                              }}
-                            >
-                              {diffLabel.toLowerCase()}
-                            </span>
-                          );
-                        })()}
-
                         {lvl.verified ? (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-['Patrick_Hand'] lowercase flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-400" />

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Sparkles, Check, Lock, Cookie, Shield, Eye } from 'lucide-react';
+import { X, Sparkles, Check, Lock, Box, Shield, Eye } from 'lucide-react';
 import { SKINS } from '../lib/constants';
 import { Skin } from '../types/game';
 import { SkinRenderer } from './SkinRenderer';
@@ -115,8 +115,8 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-full text-neutral-300 font-['Patrick_Hand'] text-sm">
-              <Cookie className="w-3.5 h-3.5 text-amber-400" />
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-full text-white font-['Patrick_Hand'] text-sm">
+              <Box className="w-3.5 h-3.5 text-white" />
               <span>{sugarCubes} sugar</span>
             </div>
 

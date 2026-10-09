@@ -29,6 +29,7 @@ export interface PowerUpChances {
   customPowerUps?: CustomPowerUpPlacement[];
   customSpeedPortals?: CustomSpeedPortalPlacement[];
   bgImage?: string;
+  bgOpacity?: number;
   difficulty?: CustomLevelDifficulty;
   ratedByMisiori?: boolean;
 }
@@ -51,6 +52,7 @@ export interface CustomLevel {
   themeColor: string;
   bgColor?: string;
   bgImage?: string;
+  bgOpacity?: number;
   anthills: CustomAnthillPlacement[];
   cocoons: CustomCocoonPlacement[];
   bossCount: number;
@@ -69,11 +71,11 @@ export interface CustomLevel {
 }
 
 export const ALL_FORMATIONS: { id: AntFormation; label: string; desc: string; badge: string; diffTag: string }[] = [
-  { id: 'direct', label: 'one direction', desc: 'straight charge at target', badge: 'easy', diffTag: 'easier' },
-  { id: 'spiral', label: 'spiral', desc: 'swirling inward vortex', badge: 'normal', diffTag: 'adds in normal' },
-  { id: 'orbit', label: 'orbit', desc: 'swerving angular sweep', badge: 'hard', diffTag: 'adds in hard' },
-  { id: 'twin', label: 'twin', desc: 'mirrored flanking split', badge: 'insane', diffTag: 'adds in insane' },
-  { id: 'zigzag', label: 'zigzag', desc: 'rapid oscillating weave', badge: 'crazy', diffTag: 'adds in crazy' },
+  { id: 'direct', label: 'one direction', desc: 'straight charge at target', badge: 'easy', diffTag: 'easy' },
+  { id: 'spiral', label: 'spiral', desc: 'swirling inward vortex', badge: 'normal', diffTag: 'normal' },
+  { id: 'orbit', label: 'orbit', desc: 'swerving angular sweep', badge: 'hard', diffTag: 'hard' },
+  { id: 'twin', label: 'twin', desc: 'mirrored flanking split', badge: 'insane', diffTag: 'insane' },
+  { id: 'zigzag', label: 'zigzag', desc: 'rapid oscillating weave', badge: 'crazy', diffTag: 'crazy' },
 ];
 
 /**
@@ -1249,6 +1251,7 @@ export function customLevelToLevelConfig(
     themeColor: custom.themeColor || '#38bdf8',
     bgColor: custom.bgColor || '#090a0f',
     bgImage: bgImage,
+    bgOpacity: custom.bgOpacity ?? (custom.powerUpChances as any)?.bgOpacity ?? 40,
     description: `by ${custom.creatorUsername} • ${custom.anthills.length} anthills, ${custom.cocoons.length} cocoons, ${custom.bossCount} bosses`,
     spawnerCount: Math.max(1, custom.anthills.length),
     maxAnts,

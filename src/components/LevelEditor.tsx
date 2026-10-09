@@ -63,6 +63,9 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const [bgImage, setBgImage] = useState<string | undefined>(
     initialLevel?.bgImage || (initialLevel?.powerUpChances as any)?.bgImage
   );
+  const [bgOpacity, setBgOpacity] = useState<number>(
+    initialLevel?.bgOpacity ?? (initialLevel?.powerUpChances as any)?.bgOpacity ?? 40
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [anthills, setAnthills] = useState<CustomAnthillPlacement[]>(
@@ -127,6 +130,8 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       if (initialLevel.themeColor) setThemeColor(initialLevel.themeColor);
       const bg = initialLevel.bgImage || (initialLevel.powerUpChances as any)?.bgImage;
       if (bg !== undefined) setBgImage(bg);
+      const op = initialLevel.bgOpacity ?? (initialLevel.powerUpChances as any)?.bgOpacity;
+      if (op !== undefined) setBgOpacity(op);
       if (initialLevel.anthills && initialLevel.anthills.length > 0) setAnthills(initialLevel.anthills);
       if (initialLevel.cocoons) setCocoons(initialLevel.cocoons);
       const ups = initialLevel.customPowerUps || (initialLevel.powerUpChances as any)?.customPowerUps;
@@ -182,6 +187,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     themeColor,
     bgColor: '#090a0f',
     bgImage,
+    bgOpacity,
     anthills,
     cocoons,
     customPowerUps,
@@ -192,6 +198,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       customPowerUps,
       customSpeedPortals,
       bgImage,
+      bgOpacity,
       formations: formations.length > 0 ? formations : ['direct'],
       difficulty,
     },
@@ -213,6 +220,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     name,
     themeColor,
     bgImage,
+    bgOpacity,
     anthills,
     cocoons,
     customPowerUps,
@@ -585,7 +593,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                           : 'bg-neutral-900/60 text-neutral-500 border-neutral-800'
                       }`}
                     >
-                      {t === 'nuke_bomb' ? 'nuke' : t === 'emp_bomb' ? 'freeze emp' : 'honey trap'}
+                      {t === 'nuke_bomb' ? 'nuke' : t === 'emp_bomb' ? 'freeze' : 'honey trap'}
                     </button>
                   ))}
                 </div>
@@ -682,7 +690,8 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               <img
                 src={bgImage}
                 alt="arena bg"
-                className="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                style={{ opacity: bgOpacity / 100 }}
               />
             )}
 
@@ -780,7 +789,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                   )}
                 </div>
                 <span className="text-[9px] font-['Patrick_Hand'] text-neutral-300 bg-black/80 px-1 rounded mt-0.5 lowercase whitespace-nowrap">
-                  {p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'emp' : 'honey'}
+                  {p.type === 'nuke_bomb' ? 'nuke' : p.type === 'emp_bomb' ? 'freeze' : 'honey'}
                 </span>
               </div>
             ))}
@@ -815,11 +824,8 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
             ))}
           </div>
 
-          <div className="pt-2 text-xs font-['Patrick_Hand'] text-neutral-400 flex items-center justify-between lowercase shrink-0">
+          <div className="pt-2 text-xs font-['Patrick_Hand'] text-neutral-500 flex items-center justify-end lowercase shrink-0">
             <span>
-              tip: tap inside box to place items • unlimited anthills & cocoons allowed
-            </span>
-            <span className="text-neutral-500">
               {anthills.length} hills • {cocoons.length} cocoons • {customPowerUps.length} power-ups • {customSpeedPortals.length} portals
             </span>
           </div>
@@ -832,7 +838,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
                 <ImageIcon className="w-4 h-4 text-sky-400" />
-                chamber background image
+                background
               </span>
               {bgImage && (
                 <button
@@ -871,6 +877,26 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 </div>
               )}
             </div>
+            {bgImage && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
+                  <span>opacity</span>
+                  <span className="text-neutral-200 font-bold">{bgOpacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="5"
+                  value={bgOpacity}
+                  onChange={(e) => {
+                    setBgOpacity(Number(e.target.value));
+                    setVerified(false);
+                  }}
+                  className="w-full accent-neutral-300 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                />
+              </div>
+            )}
           </div>
 
           {/* Theme Color Picker */}
@@ -910,17 +936,17 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
               />
               <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
-                or pick custom hex color
+                pick a custom color
               </span>
             </div>
           </div>
 
           {/* Chamber Difficulty & Speed Selector */}
           <div className="pt-2 border-t border-neutral-800/80">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
                 <Gauge className="w-4 h-4 text-amber-400" />
-                chamber difficulty & ant speed
+                chamber difficulty
               </span>
               <span
                 className="text-xs font-['Patrick_Hand'] font-bold px-2 py-0.5 rounded-full border lowercase"
@@ -933,9 +959,6 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 {difficulty.toLowerCase()}
               </span>
             </div>
-            <p className="text-[11px] font-['Patrick_Hand'] text-neutral-500 lowercase mb-2">
-              controls basic ant movement speed (crazy basic speed is as fast as omega extinction!)
-            </p>
             <div className="grid grid-cols-3 gap-1.5">
               {(['Easy', 'Normal', 'Hard', 'Harder', 'Insane', 'Crazy'] as CustomLevelDifficulty[]).map((d) => {
                 const color = DIFFICULTY_COLORS[d] || '#38bdf8';
@@ -949,7 +972,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                       setDifficulty(d);
                       setVerified(false); // changing speed/difficulty requires re-verification
                     }}
-                    className={`py-2 px-1 rounded-xl border text-xs font-['Patrick_Hand'] lowercase flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                    className={`py-2 px-1 rounded-xl border text-xs font-['Patrick_Hand'] lowercase flex items-center justify-center transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-neutral-800 text-white font-bold scale-[1.02] shadow-sm'
                         : 'bg-neutral-900/60 text-neutral-400 hover:text-white border-neutral-800/80 hover:border-neutral-700'
@@ -957,19 +980,6 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                     style={isSelected ? { borderColor: color, color } : undefined}
                   >
                     <span className="font-bold">{d.toLowerCase()}</span>
-                    <span className="text-[9px] text-neutral-500 lowercase">
-                      {d === 'Easy'
-                        ? 'gentle'
-                        : d === 'Normal'
-                        ? 'standard'
-                        : d === 'Hard'
-                        ? 'fast'
-                        : d === 'Harder'
-                        ? 'dense'
-                        : d === 'Insane'
-                        ? 'blistering'
-                        : '⚡ omega speed'}
-                    </span>
                   </button>
                 );
               })}
@@ -1170,7 +1180,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
             {/* Freeze Bomb */}
             <div>
               <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-1">
-                <span>freeze bomb (emp)</span>
+                <span>freeze</span>
                 <span className="text-sky-300 font-bold">{powerUpChances.freezeBomb}%</span>
               </div>
               <input
@@ -1190,7 +1200,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
 
           {/* Ant Directions / Movement Formations */}
           <div className="pt-2 border-t border-neutral-800/80">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
                 <Compass className="w-4 h-4 text-emerald-400" />
                 ant directions
@@ -1199,9 +1209,6 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 {formations.length} / 5 chosen
               </span>
             </div>
-            <p className="text-[11px] font-['Patrick_Hand'] text-neutral-400 lowercase mb-2 leading-tight">
-              choose in which direction are they going to make the chamber easier or harder. choose at least one.
-            </p>
 
             <div className="grid grid-cols-1 gap-1.5">
               {ALL_FORMATIONS.map((f) => {
@@ -1211,7 +1218,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                     key={f.id}
                     type="button"
                     onClick={() => handleToggleFormation(f.id)}
-                    className={`flex items-center justify-between px-3 py-1.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-neutral-900 border-emerald-500/70 text-neutral-100 shadow-sm'
                         : 'bg-neutral-950/60 border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
@@ -1227,19 +1234,11 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                       >
                         {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                       </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-['Patrick_Hand'] text-sm lowercase leading-tight text-neutral-200">
-                          {f.label}
-                        </span>
-                        <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase leading-tight">
-                          {f.desc}
-                        </span>
-                      </div>
+                      <span className="font-['Patrick_Hand'] text-sm lowercase leading-tight text-neutral-200">
+                        {f.label}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-400 lowercase hidden sm:inline">
-                        {f.diffTag}
-                      </span>
                       <span
                         className={`text-[10px] font-['Patrick_Hand'] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
                           f.id === 'direct'
@@ -1253,7 +1252,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                             : 'bg-pink-500/15 text-pink-400 border border-pink-500/30'
                         }`}
                       >
-                        {f.badge}
+                        {f.diffTag}
                       </span>
                     </div>
                   </button>
@@ -1291,12 +1290,12 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               {verified ? (
                 <span className="text-xs font-['Patrick_Hand'] text-emerald-400 font-bold flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  verified 100% (ready to publish)
+                  verified
                 </span>
               ) : (
                 <span className="text-xs font-['Patrick_Hand'] text-amber-400 flex items-center gap-1">
                   <ShieldAlert className="w-3.5 h-3.5" />
-                  unverified (verify without noclip)
+                  unverified
                 </span>
               )}
             </div>
