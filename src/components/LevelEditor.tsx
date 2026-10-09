@@ -21,19 +21,23 @@ import {
   Bomb,
   Snowflake,
   X,
+  Gauge,
 } from 'lucide-react';
 import {
   CustomLevel,
+  CustomLevelDifficulty,
   CustomAnthillPlacement,
   CustomCocoonPlacement,
   PowerUpChances,
   THEME_COLOR_PRESETS,
   ALL_FORMATIONS,
   saveDraftLevel,
+  saveLastEditingLevel,
   publishCustomLevel,
   isMobileDevice,
 } from '../lib/customLevels';
 import { PlayerProfile, AntFormation, CustomPowerUpPlacement, CustomSpeedPortalPlacement, SpeedMultiplier } from '../types/game';
+import { DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
 
 interface LevelEditorProps {
@@ -56,7 +60,9 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   );
   const [name, setName] = useState(initialLevel?.name || 'my chamber');
   const [themeColor, setThemeColor] = useState(initialLevel?.themeColor || '#38bdf8');
-  const [bgImage, setBgImage] = useState<string | undefined>(initialLevel?.bgImage);
+  const [bgImage, setBgImage] = useState<string | undefined>(
+    initialLevel?.bgImage || (initialLevel?.powerUpChances as any)?.bgImage
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [anthills, setAnthills] = useState<CustomAnthillPlacement[]>(
@@ -69,10 +75,10 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     initialLevel?.cocoons || [{ id: 1, xFrac: 0.5, yFrac: 0.3, hp: 6 }]
   );
   const [customPowerUps, setCustomPowerUps] = useState<CustomPowerUpPlacement[]>(
-    initialLevel?.customPowerUps || []
+    initialLevel?.customPowerUps || (initialLevel?.powerUpChances as any)?.customPowerUps || []
   );
   const [customSpeedPortals, setCustomSpeedPortals] = useState<CustomSpeedPortalPlacement[]>(
-    initialLevel?.customSpeedPortals || []
+    initialLevel?.customSpeedPortals || (initialLevel?.powerUpChances as any)?.customSpeedPortals || []
   );
 
   const [bossCount, setBossCount] = useState<number>(initialLevel?.bossCount ?? 1);
@@ -91,6 +97,16 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const [durationSeconds, setDurationSeconds] = useState<number>(
     initialLevel?.durationSeconds ?? 40
   );
+  const [difficulty, setDifficulty] = useState<CustomLevelDifficulty>(() => {
+    if (initialLevel?.difficulty && initialLevel.difficulty !== 'Unrated') {
+      return initialLevel.difficulty;
+    }
+    const fromPuc = (initialLevel?.powerUpChances as any)?.difficulty;
+    if (fromPuc && fromPuc !== 'Unrated') {
+      return fromPuc;
+    }
+    return 'Normal';
+  });
   const [verified, setVerified] = useState<boolean>(initialLevel?.verified ?? false);
   const [published, setPublished] = useState<boolean>(initialLevel?.published ?? false);
   const [formations, setFormations] = useState<AntFormation[]>(() => {
@@ -103,6 +119,32 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     }
     return ['direct']; // default is one direction
   });
+
+  // Sync state if initialLevel prop updates (e.g. after verification or editing level selection)
+  useEffect(() => {
+    if (initialLevel) {
+      if (initialLevel.name) setName(initialLevel.name);
+      if (initialLevel.themeColor) setThemeColor(initialLevel.themeColor);
+      const bg = initialLevel.bgImage || (initialLevel.powerUpChances as any)?.bgImage;
+      if (bg !== undefined) setBgImage(bg);
+      if (initialLevel.anthills && initialLevel.anthills.length > 0) setAnthills(initialLevel.anthills);
+      if (initialLevel.cocoons) setCocoons(initialLevel.cocoons);
+      const ups = initialLevel.customPowerUps || (initialLevel.powerUpChances as any)?.customPowerUps;
+      if (ups) setCustomPowerUps(ups);
+      const ports = initialLevel.customSpeedPortals || (initialLevel.powerUpChances as any)?.customSpeedPortals;
+      if (ports) setCustomSpeedPortals(ports);
+      if (initialLevel.bossCount !== undefined) setBossCount(initialLevel.bossCount);
+      if (initialLevel.durationSeconds !== undefined) setDurationSeconds(initialLevel.durationSeconds);
+      if (initialLevel.powerUpChances) setPowerUpChances(initialLevel.powerUpChances);
+      const diff =
+        (initialLevel.difficulty && initialLevel.difficulty !== 'Unrated')
+          ? initialLevel.difficulty
+          : (initialLevel.powerUpChances as any)?.difficulty;
+      if (diff && diff !== 'Unrated') setDifficulty(diff);
+      if (initialLevel.verified !== undefined) setVerified(initialLevel.verified);
+      if (initialLevel.published !== undefined) setPublished(initialLevel.published);
+    }
+  }, [initialLevel?.id, initialLevel?.updatedAt]);
 
   const handleToggleFormation = (f: AntFormation) => {
     sound.playClick();
@@ -147,10 +189,14 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     bossCount,
     powerUpChances: {
       ...powerUpChances,
+      customPowerUps,
+      customSpeedPortals,
+      bgImage,
       formations: formations.length > 0 ? formations : ['direct'],
+      difficulty,
     },
     durationSeconds,
-    difficulty: initialLevel?.difficulty || 'Unrated',
+    difficulty,
     verified,
     published,
     plays: initialLevel?.plays || 0,
@@ -159,20 +205,72 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     updatedAt: new Date().toISOString(),
   });
 
+  // Always keep last editing level cached in localStorage so test play & exit never loses work
+  useEffect(() => {
+    const lvl = getCurrentLevel();
+    saveLastEditingLevel(lvl);
+  }, [
+    name,
+    themeColor,
+    bgImage,
+    anthills,
+    cocoons,
+    customPowerUps,
+    customSpeedPortals,
+    bossCount,
+    powerUpChances,
+    durationSeconds,
+    difficulty,
+    formations,
+    verified,
+    published,
+  ]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setPublishError('image too large (max 5MB)');
+    if (file.size > 8 * 1024 * 1024) {
+      setPublishError('image too large (max 8MB)');
       setTimeout(() => setPublishError(null), 3000);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setBgImage(dataUrl);
-      setVerified(false);
-      sound.playClick();
+      const rawDataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        // Downscale image to a lightweight canvas (max 1280x720) to prevent localStorage quota issues
+        const maxW = 1280;
+        const maxH = 720;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          setBgImage(compressed);
+          setVerified(false);
+          sound.playClick();
+        } else {
+          setBgImage(rawDataUrl);
+          setVerified(false);
+          sound.playClick();
+        }
+      };
+      img.onerror = () => {
+        setBgImage(rawDataUrl);
+        setVerified(false);
+        sound.playClick();
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -282,6 +380,14 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     }
   };
 
+  const handleBackWithAutoSave = async () => {
+    sound.playClick();
+    const lvl = getCurrentLevel();
+    await saveDraftLevel(lvl, profile);
+    onSave(lvl);
+    onBack();
+  };
+
   const handleSaveDraft = async () => {
     sound.playClick();
     if (formations.length === 0) {
@@ -377,10 +483,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       {/* Top Header (Sticky) */}
       <div className="sticky top-0 z-30 bg-black/95 backdrop-blur-md flex items-center justify-between pb-2.5 pt-0.5 border-b border-neutral-800 shrink-0">
         <button
-          onClick={() => {
-            sound.playClick();
-            onBack();
-          }}
+          onClick={handleBackWithAutoSave}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer font-['Patrick_Hand'] text-base lowercase"
         >
           <ArrowLeft className="w-4 h-4 text-neutral-400" />
@@ -809,6 +912,67 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
                 or pick custom hex color
               </span>
+            </div>
+          </div>
+
+          {/* Chamber Difficulty & Speed Selector */}
+          <div className="pt-2 border-t border-neutral-800/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-amber-400" />
+                chamber difficulty & ant speed
+              </span>
+              <span
+                className="text-xs font-['Patrick_Hand'] font-bold px-2 py-0.5 rounded-full border lowercase"
+                style={{
+                  color: DIFFICULTY_COLORS[difficulty] || '#38bdf8',
+                  borderColor: `${DIFFICULTY_COLORS[difficulty] || '#38bdf8'}60`,
+                  backgroundColor: `${DIFFICULTY_COLORS[difficulty] || '#38bdf8'}15`,
+                }}
+              >
+                {difficulty.toLowerCase()}
+              </span>
+            </div>
+            <p className="text-[11px] font-['Patrick_Hand'] text-neutral-500 lowercase mb-2">
+              controls basic ant movement speed (crazy basic speed is as fast as omega extinction!)
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['Easy', 'Normal', 'Hard', 'Harder', 'Insane', 'Crazy'] as CustomLevelDifficulty[]).map((d) => {
+                const color = DIFFICULTY_COLORS[d] || '#38bdf8';
+                const isSelected = difficulty === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      sound.playClick();
+                      setDifficulty(d);
+                      setVerified(false); // changing speed/difficulty requires re-verification
+                    }}
+                    className={`py-2 px-1 rounded-xl border text-xs font-['Patrick_Hand'] lowercase flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-neutral-800 text-white font-bold scale-[1.02] shadow-sm'
+                        : 'bg-neutral-900/60 text-neutral-400 hover:text-white border-neutral-800/80 hover:border-neutral-700'
+                    }`}
+                    style={isSelected ? { borderColor: color, color } : undefined}
+                  >
+                    <span className="font-bold">{d.toLowerCase()}</span>
+                    <span className="text-[9px] text-neutral-500 lowercase">
+                      {d === 'Easy'
+                        ? 'gentle'
+                        : d === 'Normal'
+                        ? 'standard'
+                        : d === 'Hard'
+                        ? 'fast'
+                        : d === 'Harder'
+                        ? 'dense'
+                        : d === 'Insane'
+                        ? 'blistering'
+                        : '⚡ omega speed'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

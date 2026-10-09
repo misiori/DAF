@@ -19,7 +19,7 @@ import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Cookie, Shield, Zap, Sparkles } from 'lucide-react';
-import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations } from '../lib/customLevels';
+import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations, isLevelRated } from '../lib/customLevels';
 
 // === HANDWRITTEN FONT CONSTANTS ===
 const HAND_FONT = "'Patrick_Hand', cursive";
@@ -74,7 +74,8 @@ const DEFAULT_SPAWN_PARAMS: SpawnParams = {
 function getSpawnStyle(
   levelId: number,
   difficulty: string,
-  levelCustomFormations?: AntFormation[]
+  levelCustomFormations?: AntFormation[],
+  bpm: number = 135
 ): LevelSpawnStyle {
   // Use custom formations from level/editor if provided; otherwise follow the difficulty rule:
   // - Easy: one direction ('direct')
@@ -93,19 +94,27 @@ function getSpawnStyle(
   const finalFormations: AntFormation[] =
     allowedFormations && allowedFormations.length > 0 ? allowedFormations : ['direct'];
 
+  const isCrazy = difficulty === 'Crazy';
+  const effectiveBpm = bpm || 135;
+
   const base: SpawnParams = LEVEL_SPAWN_PARAMS[levelId] || (() => {
+    // When Crazy difficulty is selected (including custom levels), the basic ant speed matches Omega Extinction (level 23)!
+    // Omega Extinction ant speed factor = (215 / 125) * (1.70 * 0.90) = ~2.6316
+    const omegaSpeedBoost = (2.6316 / (effectiveBpm / 125)) / 0.90;
     const mult =
-      difficulty === 'Easy' ? 0.7 :
-      difficulty === 'Normal' ? 0.9 :
-      difficulty === 'Hard' ? 1.1 :
-      difficulty === 'Harder' ? 1.25 :
-      difficulty === 'Insane' ? 1.45 : 1.6;
+      difficulty === 'Easy' ? 0.75 :
+      difficulty === 'Normal' ? 0.95 :
+      difficulty === 'Hard' ? 1.15 :
+      difficulty === 'Harder' ? 1.35 :
+      difficulty === 'Insane' ? 1.60 :
+      (isCrazy ? (omegaSpeedBoost / DEFAULT_SPAWN_PARAMS.antSpeedBoost) : 1.75);
+
     return {
-      volleySize: Math.round(DEFAULT_SPAWN_PARAMS.volleySize * mult),
-      volleyInterval: DEFAULT_SPAWN_PARAMS.volleyInterval / mult,
-      fireChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.fireChance * mult),
-      acidChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.acidChance * mult),
-      antSpeedBoost: DEFAULT_SPAWN_PARAMS.antSpeedBoost * mult,
+      volleySize: Math.round(DEFAULT_SPAWN_PARAMS.volleySize * (isCrazy ? 2.5 : mult)),
+      volleyInterval: DEFAULT_SPAWN_PARAMS.volleyInterval / (isCrazy ? 2.0 : mult),
+      fireChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.fireChance * (isCrazy ? 1.8 : mult)),
+      acidChance: Math.min(0.5, DEFAULT_SPAWN_PARAMS.acidChance * (isCrazy ? 1.8 : mult)),
+      antSpeedBoost: isCrazy ? omegaSpeedBoost : DEFAULT_SPAWN_PARAMS.antSpeedBoost * mult,
       homing: 1.0,
     };
   })();
@@ -1970,7 +1979,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         });
 
-        const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey, level.formations);
+        const spawnStyle = getSpawnStyle(level.id, effectiveDiffKey, level.formations, level.bpm);
         const HARD_ANT_CAP = 300;
 
         const breakDuration = getBreakDuration(effectiveDiffKey);
@@ -2986,7 +2995,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-['Patrick_Hand'] text-sm cursor-pointer"
               >
-                exit
+                {(level as any).isVerification ? 'back to editor' : 'exit'}
               </button>
             </div>
           </div>
@@ -3004,21 +3013,36 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               progress: {Math.round(progress)}%
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 mb-6">
-              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
-                <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
-                  {score.toLocaleString()}
-                </span>
-              </div>
-              <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
-                  <Cookie className="w-4 h-4 text-amber-400" />
-                  +{sugarCollected}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const isRated = isLevelRated(level);
+              return (
+                <div className="grid grid-cols-2 gap-2.5 mb-6">
+                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
+                      {score.toLocaleString()}
+                    </span>
+                    {!isRated && (
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                        unrated (not added to acc)
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
+                    <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
+                      <Cookie className="w-4 h-4 text-amber-400" />
+                      +{isRated ? sugarCollected : 0}
+                    </span>
+                    {!isRated && (
+                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                        unrated (not added to acc)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="space-y-2.5">
               <button
@@ -3040,7 +3064,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
               >
-                chambers
+                {(level as any).isVerification ? 'back to editor' : 'chambers'}
               </button>
             </div>
           </div>
@@ -3144,11 +3168,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             )}
 
             {(() => {
-              const isLevelRated =
-                level.isRated !== false &&
-                !(level as any).isVerification &&
-                (level as any).customData?.difficulty !== 'Unrated' &&
-                level.difficulty !== ('Unrated' as any);
+              const isRated = isLevelRated(level);
               return (
                 <div className="grid grid-cols-2 gap-2.5 mb-6">
                   <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
@@ -3156,7 +3176,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                     <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
                       {score.toLocaleString()}
                     </span>
-                    {!isLevelRated && (
+                    {!isRated && (
                       <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
                         unrated (not added to acc)
                       </span>
@@ -3166,9 +3186,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                     <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
                     <span className="text-xl font-bold font-['Patrick_Hand'] text-amber-400 flex items-center justify-center gap-1">
                       <Cookie className="w-4 h-4 text-amber-400" />
-                      {isLevelRated ? `+${sugarCollected + 25} bonus` : '+0 (unrated)'}
+                      {isRated ? `+${sugarCollected + 25} bonus` : '+0 (unrated)'}
                     </span>
-                    {!isLevelRated && (
+                    {!isRated && (
                       <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
                         unrated (not added to acc)
                       </span>
@@ -3198,7 +3218,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
               >
-                chambers
+                {(level as any).isVerification ? 'back to editor' : 'chambers'}
               </button>
             </div>
           </div>

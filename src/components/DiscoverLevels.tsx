@@ -53,6 +53,9 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
 
   // Rating modal for @misiori
   const [ratingLevel, setRatingLevel] = useState<CustomLevel | null>(null);
+  // Delete confirmation modal
+  const [deletingLevel, setDeletingLevel] = useState<CustomLevel | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const isMisiori = isMisioriUser(profile.username, profile.email);
 
@@ -88,13 +91,25 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
     loadLevels();
   };
 
-  const handleDelete = async (lvl: CustomLevel) => {
+  const handleDeleteClick = (lvl: CustomLevel) => {
     sound.playClick();
-    if (!isMisiori) return;
-    if (confirm(`@misiori: delete inappropriate chamber "${lvl.name}"?`)) {
-      await deleteCommunityLevel(lvl.id, profile);
-      loadLevels();
-    }
+    setDeletingLevel(lvl);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingLevel) return;
+    const target = deletingLevel;
+    setIsDeleting(true);
+    sound.playHitSound();
+
+    // Optimistically remove from state immediately
+    setLevels((prev) => prev.filter((l) => l.id !== target.id));
+    setSavedLevels((prev) => prev.filter((l) => l.id !== target.id));
+    setDeletingLevel(null);
+    setIsDeleting(false);
+
+    await deleteCommunityLevel(target.id, profile);
+    loadLevels();
   };
 
   const difficulties: CustomLevelDifficulty[] = [
@@ -342,21 +357,23 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                       )}
                     </button>
 
-                    {/* @misiori ONLY: Rate Difficulty & Delete Buttons */}
-                    {isMisiori && (
+                    {/* Action buttons: Rate Difficulty (misiori only) & Delete (misiori or creator) */}
+                    {(isMisiori || (profile && !profile.id.startsWith('guest_') && (lvl.creatorId === profile.id || (profile.username && lvl.creatorUsername.toLowerCase() === profile.username.toLowerCase())))) && (
                       <div className="flex items-center gap-1 border-l border-neutral-800 pl-1">
-                        <button
-                          onClick={() => setRatingLevel(lvl)}
-                          className="p-1.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-400 border border-sky-800/80 transition-colors cursor-pointer"
-                          title="@misiori: rate level difficulty"
-                        >
-                          <Star className="w-4 h-4" />
-                        </button>
+                        {isMisiori && (
+                          <button
+                            onClick={() => setRatingLevel(lvl)}
+                            className="p-1.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-400 border border-sky-800/80 transition-colors cursor-pointer"
+                            title="@misiori: rate level difficulty"
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+                        )}
 
                         <button
-                          onClick={() => handleDelete(lvl)}
+                          onClick={() => handleDeleteClick(lvl)}
                           className="p-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-400 border border-rose-800/80 transition-colors cursor-pointer"
-                          title="@misiori: delete inappropriate level"
+                          title={isMisiori ? '@misiori: delete chamber' : 'delete your chamber'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -369,6 +386,71 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingLevel && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => {
+              if (!isDeleting) setDeletingLevel(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm rounded-3xl bg-neutral-900 border border-rose-800/60 p-6 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
+                <div>
+                  <h3 className="font-['Caveat'] text-3xl text-neutral-100 lowercase">
+                    {isMisiori ? 'delete chamber as @misiori?' : 'delete chamber?'}
+                  </h3>
+                  {isMisiori && (
+                    <p className="text-xs font-['Patrick_Hand'] text-rose-400 lowercase">
+                      inappropriate chamber moderation
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    if (!isDeleting) setDeletingLevel(null);
+                  }}
+                  className="p-1 rounded-full text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="font-['Patrick_Hand'] text-base text-neutral-300 lowercase leading-relaxed">
+                are u sure u want to delete <span className="text-white font-bold font-['Caveat'] text-2xl">"{deletingLevel.name}"</span> by <span className="text-sky-300 font-bold">@{deletingLevel.creatorUsername}</span>? this will permanently remove it from discover and community.
+              </p>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingLevel(null)}
+                  disabled={isDeleting}
+                  className="flex-1 py-2.5 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-['Patrick_Hand'] text-base lowercase cursor-pointer transition-all border border-neutral-700"
+                >
+                  cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-['Patrick_Hand'] text-base lowercase font-bold cursor-pointer transition-all shadow-lg shadow-rose-900/30 flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isDeleting ? 'deleting...' : isMisiori ? 'delete as @misiori' : 'delete'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* @misiori Difficulty Rating Modal */}
       <AnimatePresence>

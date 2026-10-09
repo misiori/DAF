@@ -17,6 +17,9 @@ import {
   CustomLevel,
   customLevelToLevelConfig,
   isMobileDevice,
+  saveLastEditingLevel,
+  getLastEditingLevel,
+  clearLastEditingLevel,
 } from '../lib/customLevels';
 import { YourLevels } from './YourLevels';
 import { LevelEditor } from './LevelEditor';
@@ -50,12 +53,16 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   onSubViewChange,
 }) => {
   const [subView, setSubView] = useState<ChambersSubView>(initialSubView);
-  const [editingLevel, setEditingLevel] = useState<CustomLevel | null>(null);
+  const [editingLevel, setEditingLevel] = useState<CustomLevel | null>(() => getLastEditingLevel());
   const [mobileWarning, setMobileWarning] = useState<boolean>(false);
 
   // Sync subView if parent updates initialSubView
   React.useEffect(() => {
     setSubView(initialSubView);
+    if (initialSubView === 'editor' && !editingLevel) {
+      const cached = getLastEditingLevel();
+      if (cached) setEditingLevel(cached);
+    }
   }, [initialSubView]);
 
   const switchSubView = (target: ChambersSubView) => {
@@ -115,6 +122,11 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
       setMobileWarning(true);
       return;
     }
+    if (lvlToEdit) {
+      saveLastEditingLevel(lvlToEdit);
+    } else {
+      clearLastEditingLevel();
+    }
     setEditingLevel(lvlToEdit);
     switchSubView('editor');
   };
@@ -127,6 +139,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         onCreateNew={() => handleOpenCreateOrEditor(null)}
         onEditLevel={(lvl) => handleOpenCreateOrEditor(lvl)}
         onPlayLevel={(lvl, isVerification) => {
+          saveLastEditingLevel(lvl);
           const config = customLevelToLevelConfig(lvl, isVerification);
           onSelectLevel(config, 'your_levels');
         }}
@@ -139,15 +152,17 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   if (subView === 'editor') {
     return (
       <LevelEditor
-        initialLevel={editingLevel}
+        initialLevel={editingLevel || getLastEditingLevel()}
         profile={profile}
         onSave={(lvl) => {
           setEditingLevel(lvl);
+          saveLastEditingLevel(lvl);
         }}
         onVerifyAndPlay={(lvl) => {
           setEditingLevel(lvl);
+          saveLastEditingLevel(lvl);
           const config = customLevelToLevelConfig(lvl, true);
-          onSelectLevel(config, 'your_levels');
+          onSelectLevel(config, 'editor');
         }}
         onBack={() => switchSubView('your_levels')}
       />

@@ -10,7 +10,7 @@ import { DailyChallengesModal } from './components/DailyChallengesModal';
 import { OrientationGuard } from './components/OrientationGuard';
 import { PlayerProfile, LevelConfig } from './types/game';
 import { ChallengeEvent, recordChallengeEvent } from './lib/dailyChallenges';
-import { customLevelToLevelConfig, clearDeviceCustomLevels } from './lib/customLevels';
+import { customLevelToLevelConfig, clearDeviceCustomLevels, isLevelRated, saveDraftLevel, saveLastEditingLevel } from './lib/customLevels';
 import {
   getGuestProfile,
   saveGuestProfile,
@@ -228,12 +228,7 @@ export default function App() {
     (lvlId: number, finalScore: number, sugarEarned: number, progressPercent = 0, isEndless = false) => {
       const idNum = Number(lvlId);
       const curLevel = selectedLevelRef.current;
-      const isRated = curLevel
-        ? curLevel.isRated !== false &&
-          !(curLevel as any).isVerification &&
-          (curLevel as any).customData?.difficulty !== 'Unrated' &&
-          curLevel.difficulty !== ('Unrated' as any)
-        : true;
+      const isRated = isLevelRated(curLevel);
 
       setProfile((prevProfile) => {
         const currentHigh =
@@ -306,12 +301,7 @@ export default function App() {
       const idNum = Number(lvlId);
       const victoryBonus = 25;
       const curLevel = selectedLevelRef.current;
-      const isRated = curLevel
-        ? curLevel.isRated !== false &&
-          !(curLevel as any).isVerification &&
-          (curLevel as any).customData?.difficulty !== 'Unrated' &&
-          curLevel.difficulty !== ('Unrated' as any)
-        : true;
+      const isRated = isLevelRated(curLevel);
 
       setProfile((prevProfile) => {
         const currentHigh =
@@ -385,6 +375,17 @@ export default function App() {
             daily_challenges: updated.daily_challenges,
           });
         }
+
+        // If this was a custom chamber editor verification test and won, mark verified
+        if ((curLevel as any)?.isVerification && (curLevel as any)?.customData) {
+          const verifiedDraft = {
+            ...(curLevel as any).customData,
+            verified: true,
+          };
+          saveDraftLevel(verifiedDraft, prevProfile);
+          saveLastEditingLevel(verifiedDraft);
+        }
+
         return updated;
       });
     },

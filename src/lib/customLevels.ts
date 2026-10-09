@@ -26,6 +26,11 @@ export interface PowerUpChances {
   speed15?: number;    // 0 to 100% for 1.5x speed portal
   speed20?: number;    // 0 to 100% for 2.0x speed portal
   formations?: AntFormation[];
+  customPowerUps?: CustomPowerUpPlacement[];
+  customSpeedPortals?: CustomSpeedPortalPlacement[];
+  bgImage?: string;
+  difficulty?: CustomLevelDifficulty;
+  ratedByMisiori?: boolean;
 }
 
 export type CustomLevelDifficulty =
@@ -54,6 +59,7 @@ export interface CustomLevel {
   difficulty: CustomLevelDifficulty;
   verified: boolean;
   published: boolean;
+  ratedByMisiori?: boolean;
   plays: number;
   formations?: AntFormation[];
   customPowerUps?: CustomPowerUpPlacement[];
@@ -102,6 +108,31 @@ export function getDifficultyFormations(difficulty: string): AntFormation[] {
 const LOCAL_DRAFTS_KEY = 'daf_custom_levels_drafts_v1';
 const LOCAL_SAVED_CHAMBERS_KEY = 'daf_saved_chambers_ids_v1';
 const LOCAL_COMMUNITY_CACHE_KEY = 'daf_community_levels_cache_v1';
+const LAST_EDITING_LEVEL_KEY = 'daf_last_editing_level_v1';
+
+export function saveLastEditingLevel(level: CustomLevel): void {
+  try {
+    localStorage.setItem(LAST_EDITING_LEVEL_KEY, JSON.stringify(level));
+  } catch (e) {
+    console.warn('Error caching last editing level', e);
+  }
+}
+
+export function getLastEditingLevel(): CustomLevel | null {
+  try {
+    const raw = localStorage.getItem(LAST_EDITING_LEVEL_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading last editing level', e);
+  }
+  return null;
+}
+
+export function clearLastEditingLevel(): void {
+  try {
+    localStorage.removeItem(LAST_EDITING_LEVEL_KEY);
+  } catch (_) {}
+}
 
 // Preset Theme Color Palettes
 export const THEME_COLOR_PRESETS = [
@@ -256,8 +287,21 @@ export async function fetchDiscoverLevels(
         creatorAvatarUrl: row.creator_avatar_url || row.creatorAvatarUrl,
         themeColor: row.theme_color || row.themeColor || '#38bdf8',
         bgColor: row.bg_color || row.bgColor || '#090a0f',
+        bgImage: row.bg_image || row.bgImage || row.power_up_chances?.bgImage,
         anthills: row.anthills || [],
         cocoons: row.cocoons || [],
+        customPowerUps:
+          (Array.isArray(row.custom_power_ups) && row.custom_power_ups.length > 0)
+            ? row.custom_power_ups
+            : (Array.isArray(row.customPowerUps) && row.customPowerUps.length > 0)
+            ? row.customPowerUps
+            : (Array.isArray(row.power_up_chances?.customPowerUps) ? row.power_up_chances.customPowerUps : []),
+        customSpeedPortals:
+          (Array.isArray(row.custom_speed_portals) && row.custom_speed_portals.length > 0)
+            ? row.custom_speed_portals
+            : (Array.isArray(row.customSpeedPortals) && row.customSpeedPortals.length > 0)
+            ? row.customSpeedPortals
+            : (Array.isArray(row.power_up_chances?.customSpeedPortals) ? row.power_up_chances.customSpeedPortals : []),
         bossCount: Number(row.boss_count ?? row.bossCount ?? 1),
         powerUpChances: row.power_up_chances || row.powerUpChances || {
           speed: 50,
@@ -267,8 +311,9 @@ export async function fetchDiscoverLevels(
         },
         durationSeconds: Number(row.duration_seconds ?? row.durationSeconds ?? 40),
         difficulty: row.difficulty || 'Unrated',
-        verified: Boolean(row.verified),
+        verified: Boolean(row.verified || (row.difficulty && row.difficulty !== 'Unrated')),
         published: true,
+        ratedByMisiori: Boolean(row.difficulty && row.difficulty !== 'Unrated'),
         plays: Number(row.plays || 0),
         formations:
           (Array.isArray(row.formations) && row.formations.length > 0 ? row.formations : null) ||
@@ -278,9 +323,23 @@ export async function fetchDiscoverLevels(
         updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
       }));
 
-      // Merge remote with seeds without duplicate ids
+      // Merge remote with seeds without duplicate ids, preserving local rich data if any
       const map = new Map<string, CustomLevel>();
-      remoteLevels.forEach((l) => map.set(l.id, l));
+      const existingMap = new Map<string, CustomLevel>();
+      allLevels.forEach((l) => existingMap.set(l.id, l));
+
+      remoteLevels.forEach((l) => {
+        const local = existingMap.get(l.id);
+        const merged: CustomLevel = {
+          ...l,
+          bgImage: l.bgImage || local?.bgImage,
+          customPowerUps:
+            (l.customPowerUps && l.customPowerUps.length > 0) ? l.customPowerUps : (local?.customPowerUps || []),
+          customSpeedPortals:
+            (l.customSpeedPortals && l.customSpeedPortals.length > 0) ? l.customSpeedPortals : (local?.customSpeedPortals || []),
+        };
+        map.set(merged.id, merged);
+      });
       allLevels.forEach((l) => {
         if (!map.has(l.id)) map.set(l.id, l);
       });
@@ -339,37 +398,26 @@ export function clearDeviceCustomLevels(): void {
   }
 }
 
-export function getUserLevelsKey(profile?: PlayerProfile): string | null {
-  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
-    return null;
+export function getUserLevelsKey(profile?: PlayerProfile): string {
+  if (profile && profile.id && profile.id !== 'guest' && !profile.id.startsWith('guest_')) {
+    return `ant_farm_levels_${profile.id}`;
   }
-  return `ant_farm_levels_${profile.id}`;
+  return LOCAL_DRAFTS_KEY;
 }
 
 /**
  * Fetch all user-created levels.
- * When logged out (guest), returns empty array.
+ * For guests, returns local device drafts.
  * When logged in, fetches from account (Supabase + user account cache).
  */
 export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<CustomLevel[]> {
+  const localList = getLocalUserDrafts(profile);
+
   if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
-    return [];
+    return localList;
   }
 
   const userKey = getUserLevelsKey(profile);
-  let localList: CustomLevel[] = [];
-  if (userKey) {
-    try {
-      const raw = localStorage.getItem(userKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // Strictly keep only levels belonging to this user
-          localList = parsed.filter((l) => !l.creatorId || l.creatorId === profile.id);
-        }
-      }
-    } catch (_) {}
-  }
 
   try {
     // Strictly fetch by creator_id matching the authenticated profile ID
@@ -380,33 +428,80 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
       .order('updated_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
-      const dbLevels: CustomLevel[] = data.map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        creatorId: row.creator_id,
-        creatorUsername: row.creator_username || profile.username,
-        creatorAvatarUrl: row.creator_avatar_url,
-        themeColor: row.theme_color || '#38bdf8',
-        bgColor: row.bg_color || '#090a0f',
-        anthills: row.anthills || [],
-        cocoons: row.cocoons || [],
-        bossCount: row.boss_count || 0,
-        powerUpChances: row.power_up_chances || { speed: 20, honeyTraps: 20, nukeBomb: 20, freezeBomb: 20 },
-        durationSeconds: row.duration_seconds || 40,
-        difficulty: row.difficulty || 'Unrated',
-        verified: Boolean(row.verified),
-        published: Boolean(row.published),
-        plays: row.plays || 0,
-        formations:
-          (Array.isArray(row.formations) && row.formations.length > 0 ? row.formations : null) ||
-          (row.power_up_chances && Array.isArray(row.power_up_chances.formations) && row.power_up_chances.formations.length > 0 ? row.power_up_chances.formations : null) ||
-          ['direct'],
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      const dbLevels: CustomLevel[] = data.map((row: any) => {
+        const puc = row.power_up_chances || {};
+        return {
+          id: row.id,
+          name: row.name,
+          creatorId: row.creator_id,
+          creatorUsername: row.creator_username || profile.username,
+          creatorAvatarUrl: row.creator_avatar_url,
+          themeColor: row.theme_color || '#38bdf8',
+          bgColor: row.bg_color || '#090a0f',
+          bgImage: row.bg_image || row.bgImage || puc.bgImage,
+          anthills: row.anthills || [],
+          cocoons: row.cocoons || [],
+          customPowerUps:
+            (Array.isArray(row.custom_power_ups) && row.custom_power_ups.length > 0)
+              ? row.custom_power_ups
+              : (Array.isArray(puc.customPowerUps) && puc.customPowerUps.length > 0)
+              ? puc.customPowerUps
+              : [],
+          customSpeedPortals:
+            (Array.isArray(row.custom_speed_portals) && row.custom_speed_portals.length > 0)
+              ? row.custom_speed_portals
+              : (Array.isArray(puc.customSpeedPortals) && puc.customSpeedPortals.length > 0)
+              ? puc.customSpeedPortals
+              : [],
+          bossCount: row.boss_count ?? 1,
+          powerUpChances: puc,
+          durationSeconds: row.duration_seconds || 40,
+          difficulty: row.difficulty || puc.difficulty || 'Normal',
+          verified: Boolean(row.verified),
+          published: Boolean(row.published),
+          ratedByMisiori: Boolean((row as any).ratedByMisiori || (row as any).rated_by_misiori || puc.ratedByMisiori),
+          plays: row.plays || 0,
+          formations:
+            (Array.isArray(row.formations) && row.formations.length > 0 ? row.formations : null) ||
+            (Array.isArray(puc.formations) && puc.formations.length > 0 ? puc.formations : null) ||
+            ['direct'],
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
+
+      const localMap = new Map<string, CustomLevel>();
+      localList.forEach((l) => localMap.set(l.id, l));
 
       const mergedMap = new Map<string, CustomLevel>();
-      dbLevels.forEach((l) => mergedMap.set(l.id, l));
+      dbLevels.forEach((dbLvl) => {
+        const local = localMap.get(dbLvl.id);
+        const resolvedBgImage = dbLvl.bgImage || local?.bgImage;
+        const resolvedPowerUps =
+          (dbLvl.customPowerUps && dbLvl.customPowerUps.length > 0)
+            ? dbLvl.customPowerUps
+            : (local?.customPowerUps || []);
+        const resolvedPortals =
+          (dbLvl.customSpeedPortals && dbLvl.customSpeedPortals.length > 0)
+            ? dbLvl.customSpeedPortals
+            : (local?.customSpeedPortals || []);
+
+        const merged: CustomLevel = {
+          ...dbLvl,
+          bgImage: resolvedBgImage,
+          customPowerUps: resolvedPowerUps,
+          customSpeedPortals: resolvedPortals,
+          powerUpChances: {
+            ...(dbLvl.powerUpChances || {}),
+            ...(local?.powerUpChances || {}),
+            customPowerUps: resolvedPowerUps,
+            customSpeedPortals: resolvedPortals,
+            bgImage: resolvedBgImage,
+            difficulty: dbLvl.difficulty,
+          },
+        };
+        mergedMap.set(merged.id, merged);
+      });
       localList.forEach((l) => {
         if ((!l.creatorId || l.creatorId === profile.id) && !mergedMap.has(l.id)) {
           mergedMap.set(l.id, l);
@@ -414,7 +509,9 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
       });
       const finalList = Array.from(mergedMap.values());
       if (userKey) {
-        localStorage.setItem(userKey, JSON.stringify(finalList));
+        try {
+          localStorage.setItem(userKey, JSON.stringify(finalList));
+        } catch (_) {}
       }
       return finalList;
     }
@@ -427,51 +524,76 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
 
 /**
  * Get all drafts and user created levels for the player.
- * When logged out, returns empty array so nothing is left on device.
+ * Checks player's storage key with fallback to local drafts key.
  */
 export function getLocalUserDrafts(profile?: PlayerProfile): CustomLevel[] {
-  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
-    return [];
-  }
   const userKey = getUserLevelsKey(profile);
-  if (!userKey) return [];
   try {
     const raw = localStorage.getItem(userKey);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((l) => !l.creatorId || l.creatorId === profile.id);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
       }
     }
   } catch (e) {
     console.warn('Error reading local user levels', e);
   }
+
+  // Fallback to general local drafts key if user-specific key had nothing
+  if (userKey !== LOCAL_DRAFTS_KEY) {
+    try {
+      const rawFallback = localStorage.getItem(LOCAL_DRAFTS_KEY);
+      if (rawFallback) {
+        const parsed = JSON.parse(rawFallback);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+  }
   return [];
 }
 
 /**
- * Save draft level to account and account cache (does not save on device if logged out)
+ * Save draft level to account and local device storage.
  */
 export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile): Promise<void> {
-  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
-    return;
-  }
-  const userKey = getUserLevelsKey(profile);
-  if (!userKey) return;
+  const isGuest = !profile || profile.id === 'guest' || profile.id.startsWith('guest_');
+  const creatorId = (!isGuest && profile?.id) ? profile.id : (level.creatorId || 'guest');
+  const creatorUsername = (!isGuest && profile?.username) ? profile.username : (level.creatorUsername || 'creator');
 
-  // SECURITY: Prevent ownership transfer!
-  // If the level was already created by another user, refuse to overwrite it or reassign it!
-  if (level.creatorId && level.creatorId !== 'guest' && level.creatorId !== profile.id) {
+  // SECURITY: Prevent ownership transfer if created by another authenticated user
+  if (!isGuest && level.creatorId && level.creatorId !== 'guest' && level.creatorId !== profile.id) {
     console.warn('Refusing to save draft: level belongs to another creator', level.creatorId, 'current:', profile.id);
     return;
   }
 
+  const directFormations: AntFormation[] =
+    level.formations && level.formations.length > 0
+      ? (level.formations as AntFormation[])
+      : (['direct'] as AntFormation[]);
+
   const updatedLvl: CustomLevel = {
     ...level,
-    creatorId: profile.id,
-    creatorUsername: profile.username || level.creatorUsername,
+    creatorId,
+    creatorUsername,
+    formations: directFormations,
+    powerUpChances: {
+      ...(level.powerUpChances || {}),
+      formations: directFormations,
+      customPowerUps: level.customPowerUps || [],
+      customSpeedPortals: level.customSpeedPortals || [],
+      bgImage: level.bgImage,
+      difficulty: level.difficulty,
+    },
     updatedAt: new Date().toISOString(),
   };
+
+  // Keep last editing level updated so testing/exiting returns straight to it
+  saveLastEditingLevel(updatedLvl);
+
+  const userKey = getUserLevelsKey(profile);
 
   try {
     const list = getLocalUserDrafts(profile);
@@ -482,81 +604,146 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
       list.unshift(updatedLvl);
     }
     localStorage.setItem(userKey, JSON.stringify(list));
+    if (userKey !== LOCAL_DRAFTS_KEY) {
+      localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(list));
+    }
   } catch (e) {
-    console.warn('Error saving draft level', e);
+    console.warn('Error saving draft level to localStorage', e);
   }
 
-  // Persist to account in Supabase
-  try {
-    const directFormations =
-      updatedLvl.formations && updatedLvl.formations.length > 0
-        ? updatedLvl.formations
-        : ['direct'];
-
-    const payload = {
-      id: updatedLvl.id,
-      name: updatedLvl.name,
-      creator_id: profile.id,
-      creator_username: profile.username,
-      creator_avatar_url: profile.avatar_url,
-      theme_color: updatedLvl.themeColor,
-      bg_color: updatedLvl.bgColor || '#090a0f',
-      anthills: updatedLvl.anthills,
-      cocoons: updatedLvl.cocoons,
-      boss_count: updatedLvl.bossCount,
-      power_up_chances: {
-        ...(updatedLvl.powerUpChances || {}),
+  // If authenticated, persist to account in Supabase
+  if (!isGuest && profile?.id) {
+    try {
+      const payload: any = {
+        id: updatedLvl.id,
+        name: updatedLvl.name,
+        creator_id: profile.id,
+        creator_username: profile.username || 'creator',
+        creator_avatar_url: profile.avatar_url,
+        theme_color: updatedLvl.themeColor,
+        bg_color: updatedLvl.bgColor || '#090a0f',
+        bg_image: updatedLvl.bgImage,
+        anthills: updatedLvl.anthills,
+        cocoons: updatedLvl.cocoons,
+        custom_power_ups: updatedLvl.customPowerUps || [],
+        custom_speed_portals: updatedLvl.customSpeedPortals || [],
+        boss_count: updatedLvl.bossCount,
+        power_up_chances: {
+          ...(updatedLvl.powerUpChances || {}),
+          formations: directFormations,
+          customPowerUps: updatedLvl.customPowerUps || [],
+          customSpeedPortals: updatedLvl.customSpeedPortals || [],
+          bgImage: updatedLvl.bgImage,
+          difficulty: updatedLvl.difficulty,
+        },
+        duration_seconds: updatedLvl.durationSeconds,
+        difficulty: updatedLvl.difficulty,
+        verified: Boolean(updatedLvl.verified),
+        published: Boolean(updatedLvl.published),
         formations: directFormations,
-      },
-      duration_seconds: updatedLvl.durationSeconds,
-      difficulty: updatedLvl.difficulty,
-      verified: Boolean(updatedLvl.verified),
-      published: Boolean(updatedLvl.published),
-      formations: directFormations,
-      updated_at: updatedLvl.updatedAt,
-    };
+        updated_at: updatedLvl.updatedAt,
+      };
 
-    const { error: upsertErr } = await supabaseAdmin.from('custom_levels').upsert(
-      payload,
-      { onConflict: 'id' }
-    );
+      const { error: upsertErr } = await supabaseAdmin.from('custom_levels').upsert(
+        payload,
+        { onConflict: 'id' }
+      );
 
-    if (upsertErr) {
-      console.warn('saveDraftLevel Supabase sync note:', upsertErr.message);
-      if (upsertErr.message?.includes('formations') || upsertErr.code === '42703') {
+      if (upsertErr) {
+        console.warn('saveDraftLevel Supabase sync note:', upsertErr.message);
         const fallback = { ...payload };
         delete (fallback as any).formations;
+        delete (fallback as any).bg_image;
+        delete (fallback as any).custom_power_ups;
+        delete (fallback as any).custom_speed_portals;
         await supabaseAdmin.from('custom_levels').upsert(fallback, { onConflict: 'id' });
       }
+    } catch (err) {
+      console.warn('saveDraftLevel Supabase sync note:', err);
     }
-  } catch (err) {
-    console.warn('saveDraftLevel Supabase sync note:', err);
   }
 }
 
 /**
  * Delete a draft level from account and cache
  */
-export async function deleteCustomLevelDraft(levelId: string, profile?: PlayerProfile): Promise<void> {
-  if (!profile || profile.id === 'guest' || profile.id.startsWith('guest_')) {
-    return;
+export async function deleteCustomLevelDraft(levelId: string, profile?: PlayerProfile): Promise<boolean> {
+  // 1. Remove from all possible local storage draft keys
+  try {
+    const rawLocal = localStorage.getItem(LOCAL_DRAFTS_KEY);
+    if (rawLocal) {
+      const parsed = JSON.parse(rawLocal);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((l: any) => l && l.id !== levelId);
+        localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(filtered));
+      }
+    }
+    const rawUserDrafts = localStorage.getItem('ant_farm_user_drafts');
+    if (rawUserDrafts) {
+      const parsed = JSON.parse(rawUserDrafts);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((l: any) => l && l.id !== levelId);
+        localStorage.setItem('ant_farm_user_drafts', JSON.stringify(filtered));
+      }
+    }
+  } catch (e) {
+    console.warn('Error deleting draft from generic local storage', e);
   }
-  const userKey = getUserLevelsKey(profile);
-  if (userKey) {
-    try {
-      const list = getLocalUserDrafts(profile).filter((l) => l.id !== levelId);
-      localStorage.setItem(userKey, JSON.stringify(list));
-    } catch (e) {
-      console.warn('Error deleting draft from cache', e);
+
+  // 2. Remove from user-specific draft key
+  if (profile) {
+    const userKey = getUserLevelsKey(profile);
+    if (userKey) {
+      try {
+        const list = getLocalUserDrafts(profile).filter((l) => l.id !== levelId);
+        localStorage.setItem(userKey, JSON.stringify(list));
+      } catch (e) {
+        console.warn('Error deleting draft from user cache', e);
+      }
     }
   }
 
+  // 3. Remove from community cache & saved chambers
   try {
-    // Only delete if it genuinely belongs to this user!
-    await supabaseAdmin.from('custom_levels').delete().eq('id', levelId).eq('creator_id', profile.id);
+    const comm = getLocalCommunityCache().filter((l) => l.id !== levelId);
+    saveLocalCommunityCache(comm);
+    const saved = getSavedChamberIds().filter((id) => id !== levelId);
+    localStorage.setItem(LOCAL_SAVED_CHAMBERS_KEY, JSON.stringify(saved));
+  } catch (e) {
+    console.warn('Error deleting from community cache / saved chambers', e);
+  }
+
+  // 4. Delete from Supabase
+  try {
+    const isMisiori = profile && isMisioriUser(profile.username, profile.email);
+    if (isMisiori) {
+      await supabaseAdmin.from('custom_levels').delete().eq('id', levelId);
+      await supabase.from('custom_levels').delete().eq('id', levelId);
+    } else if (profile && profile.id && !profile.id.startsWith('guest_')) {
+      // Allow deletion if creator_id matches OR creator_username matches
+      await supabaseAdmin
+        .from('custom_levels')
+        .delete()
+        .eq('id', levelId)
+        .eq('creator_id', profile.id);
+      if (profile.username) {
+        await supabaseAdmin
+          .from('custom_levels')
+          .delete()
+          .eq('id', levelId)
+          .ilike('creator_username', profile.username);
+      }
+      await supabase
+        .from('custom_levels')
+        .delete()
+        .eq('id', levelId)
+        .eq('creator_id', profile.id);
+    }
   } catch (e) {
     console.warn('deleteCustomLevelDraft Supabase delete note:', e);
   }
+
+  return true;
 }
 
 /**
@@ -669,7 +856,7 @@ export async function publishCustomLevel(
         ? publishedLevel.formations
         : ['direct'];
 
-    const payload = {
+    const payload: any = {
       id: publishedLevel.id,
       name: publishedLevel.name,
       creator_id: profile.id,
@@ -677,12 +864,18 @@ export async function publishCustomLevel(
       creator_avatar_url: profile.avatar_url,
       theme_color: publishedLevel.themeColor,
       bg_color: publishedLevel.bgColor || '#090a0f',
+      bg_image: publishedLevel.bgImage,
       anthills: publishedLevel.anthills,
       cocoons: publishedLevel.cocoons,
+      custom_power_ups: publishedLevel.customPowerUps || [],
+      custom_speed_portals: publishedLevel.customSpeedPortals || [],
       boss_count: publishedLevel.bossCount,
       power_up_chances: {
         ...(publishedLevel.powerUpChances || {}),
         formations: directFormations,
+        customPowerUps: publishedLevel.customPowerUps || [],
+        customSpeedPortals: publishedLevel.customSpeedPortals || [],
+        bgImage: publishedLevel.bgImage,
       },
       duration_seconds: publishedLevel.durationSeconds,
       difficulty: publishedLevel.difficulty,
@@ -700,11 +893,12 @@ export async function publishCustomLevel(
 
     if (adminErr) {
       console.warn('Supabase custom_levels upsert note:', adminErr.message);
-      if (adminErr.message?.includes('formations') || adminErr.code === '42703') {
-        const fallback = { ...payload };
-        delete (fallback as any).formations;
-        await supabaseAdmin.from('custom_levels').upsert(fallback, { onConflict: 'id' });
-      }
+      const fallback = { ...payload };
+      delete (fallback as any).formations;
+      delete (fallback as any).bg_image;
+      delete (fallback as any).custom_power_ups;
+      delete (fallback as any).custom_speed_portals;
+      await supabaseAdmin.from('custom_levels').upsert(fallback, { onConflict: 'id' });
     }
   } catch (err) {
     console.warn('publishCustomLevel remote exception:', err);
@@ -849,33 +1043,44 @@ export async function rateLevelDifficulty(
     return false;
   }
 
+  const isRated = newDifficulty !== 'Unrated';
+
   // Update in community cache
   const community = getLocalCommunityCache();
   const found = community.find((l) => l.id === levelId);
   if (found) {
     found.difficulty = newDifficulty;
+    found.verified = true;
+    (found as any).ratedByMisiori = isRated;
     found.updatedAt = new Date().toISOString();
     saveLocalCommunityCache(community);
   }
 
   // Update in local drafts if exists
-  const drafts = getLocalUserDrafts();
+  const drafts = getLocalUserDrafts(profile);
   const dFound = drafts.find((l) => l.id === levelId);
   if (dFound) {
     dFound.difficulty = newDifficulty;
-    saveDraftLevel(dFound);
+    dFound.verified = true;
+    (dFound as any).ratedByMisiori = isRated;
+    saveDraftLevel(dFound, profile);
   }
 
-  // Update in Supabase via supabaseAdmin
+  // Update in Supabase via supabaseAdmin and supabase
   try {
-    const { error } = await supabaseAdmin
+    const updatePayload = {
+      difficulty: newDifficulty,
+      verified: true,
+      updated_at: new Date().toISOString(),
+    };
+    await supabaseAdmin
       .from('custom_levels')
-      .update({ difficulty: newDifficulty, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq('id', levelId);
-
-    if (error) {
-      console.warn('Supabase rate difficulty error:', error.message);
-    }
+    await supabase
+      .from('custom_levels')
+      .update(updatePayload)
+      .eq('id', levelId);
   } catch (e) {
     console.warn('rateLevelDifficulty exception:', e);
   }
@@ -884,40 +1089,91 @@ export async function rateLevelDifficulty(
 }
 
 /**
- * ONLY @misiori can delete inappropriate levels!
+ * Delete a community level.
+ * Allowed for @misiori (inappropriate levels) OR the level's creator!
  */
 export async function deleteCommunityLevel(
   levelId: string,
-  profile: PlayerProfile
+  profile?: PlayerProfile
 ): Promise<boolean> {
-  if (!isMisioriUser(profile.username, profile.email)) {
-    console.error('Unauthorized: ONLY @misiori can delete inappropriate levels!');
+  const isMisiori = profile && isMisioriUser(profile.username, profile.email);
+  const community = getLocalCommunityCache();
+  const targetLevel = community.find((l) => l.id === levelId);
+
+  const isOwner = Boolean(
+    profile &&
+    profile.id &&
+    !profile.id.startsWith('guest_') &&
+    targetLevel &&
+    (targetLevel.creatorId === profile.id ||
+      (profile.username && targetLevel.creatorUsername.toLowerCase() === profile.username.toLowerCase()))
+  );
+
+  if (!isMisiori && !isOwner) {
+    console.error('Unauthorized: ONLY @misiori or the level creator can delete this level!');
     return false;
   }
 
   // Remove from community cache
-  const community = getLocalCommunityCache().filter((l) => l.id !== levelId);
-  saveLocalCommunityCache(community);
+  const updatedCommunity = community.filter((l) => l.id !== levelId);
+  saveLocalCommunityCache(updatedCommunity);
 
   // Remove from saved chambers
   const saved = getSavedChamberIds().filter((id) => id !== levelId);
   localStorage.setItem(LOCAL_SAVED_CHAMBERS_KEY, JSON.stringify(saved));
 
-  // Delete from Supabase via supabaseAdmin
-  try {
-    const { error } = await supabaseAdmin
-      .from('custom_levels')
-      .delete()
-      .eq('id', levelId);
+  // Remove from user drafts cache if present
+  if (profile) {
+    const userKey = getUserLevelsKey(profile);
+    if (userKey) {
+      const list = getLocalUserDrafts(profile).filter((l) => l.id !== levelId);
+      localStorage.setItem(userKey, JSON.stringify(list));
+    }
+  }
 
-    if (error) {
-      console.warn('Supabase delete level error:', error.message);
+  // Delete from Supabase via supabaseAdmin and supabase
+  try {
+    if (isMisiori) {
+      await supabaseAdmin.from('custom_levels').delete().eq('id', levelId);
+      await supabase.from('custom_levels').delete().eq('id', levelId);
+    } else if (profile?.id) {
+      await supabaseAdmin.from('custom_levels').delete().eq('id', levelId).eq('creator_id', profile.id);
+      if (profile.username) {
+        await supabaseAdmin.from('custom_levels').delete().eq('id', levelId).ilike('creator_username', profile.username);
+      }
+      await supabase.from('custom_levels').delete().eq('id', levelId).eq('creator_id', profile.id);
     }
   } catch (e) {
     console.warn('deleteCommunityLevel exception:', e);
   }
 
   return true;
+}
+
+/**
+ * Universal helper: check if a level gives points and sugar cubes.
+ * - Official campaign levels give points by default!
+ * - Custom levels: must be rated by misiori (difficulty !== 'Unrated' or ratedByMisiori)
+ * - Levels tested in editor verification mode do not give points.
+ */
+export function isLevelRated(level: LevelConfig | CustomLevel | any | null | undefined): boolean {
+  if (!level) return false;
+  // If it's an official campaign level (not custom)
+  const isCustom = Boolean(level.isCustom || level.customData || level.customLevelId);
+  if (!isCustom) {
+    // Official levels give points by default
+    return true;
+  }
+  // Creator verification mode inside editor: not rated
+  if (level.isVerification) {
+    return false;
+  }
+  // Custom level: ONLY rated if rated by misiori
+  const custom = level.customData || level;
+  if (custom.ratedByMisiori || custom.rated_by_misiori) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -929,10 +1185,6 @@ export function customLevelToLevelConfig(
 ): LevelConfig & { customData: CustomLevel; isVerification?: boolean } {
   const numId = getCustomLevelNumberId(custom.id);
 
-  // If the level is not verified, playing it always runs in verification mode
-  const isUnverified = !custom.verified && !(custom as any).isVerified;
-  const effectiveVerification = Boolean(isVerification || isUnverified);
-
   const diffColorMap: Record<string, string> = {
     Unrated: '#94a3b8',
     Easy: '#38bdf8',
@@ -943,24 +1195,63 @@ export function customLevelToLevelConfig(
     Crazy: '#f43f5e',
   };
 
-  const isRated = !effectiveVerification && custom.difficulty !== 'Unrated' && custom.difficulty !== undefined;
+  // A custom level is rated for leaderboard/points ONLY if rated by misiori
+  const isRatedByMisiori = Boolean(
+    (custom as any).ratedByMisiori ||
+    (custom as any).rated_by_misiori
+  );
+
+  // Verification mode is active during creator test in LevelEditor
+  const effectiveVerification = Boolean(isVerification && !isRatedByMisiori);
+  const isRated = Boolean(isRatedByMisiori && !effectiveVerification);
+
+  // The intended difficulty chosen in the editor (or default Normal)
+  const chosenDifficulty: CustomLevelDifficulty =
+    (custom.difficulty && custom.difficulty !== 'Unrated')
+      ? custom.difficulty
+      : ((custom.powerUpChances as any)?.difficulty && (custom.powerUpChances as any)?.difficulty !== 'Unrated')
+      ? (custom.powerUpChances as any).difficulty
+      : 'Normal';
+
+  const powerUps =
+    (custom.customPowerUps && custom.customPowerUps.length > 0)
+      ? custom.customPowerUps
+      : ((custom.powerUpChances as any)?.customPowerUps && (custom.powerUpChances as any).customPowerUps.length > 0)
+      ? (custom.powerUpChances as any).customPowerUps
+      : [];
+
+  const portals =
+    (custom.customSpeedPortals && custom.customSpeedPortals.length > 0)
+      ? custom.customSpeedPortals
+      : ((custom.powerUpChances as any)?.customSpeedPortals && (custom.powerUpChances as any).customSpeedPortals.length > 0)
+      ? (custom.powerUpChances as any).customSpeedPortals
+      : [];
+
+  const bgImage = custom.bgImage || (custom.powerUpChances as any)?.bgImage;
+
+  // When Crazy difficulty is chosen, set BPM to 215 (exact BPM of Omega Extinction!)
+  const isCrazy = chosenDifficulty === 'Crazy';
+  const effectiveDifficulty: 'Easy' | 'Normal' | 'Hard' | 'Harder' | 'Insane' | 'Crazy' =
+    chosenDifficulty === 'Unrated' ? 'Normal' : chosenDifficulty;
+  const bpm = isCrazy ? 215 : 135;
+  const maxAnts = isCrazy ? 160 : 80;
 
   return {
     id: numId,
     name: custom.name,
-    difficulty: custom.difficulty === 'Unrated' ? 'Normal' : (custom.difficulty as any),
-    difficultyColor: diffColorMap[custom.difficulty] || '#38bdf8',
-    songUrl: 'https://www.newgrounds.com/audio/listen/1622289',
+    difficulty: effectiveDifficulty,
+    difficultyColor: diffColorMap[chosenDifficulty] || '#38bdf8',
+    songUrl: isCrazy ? 'https://www.newgrounds.com/audio/listen/1424000' : 'https://www.newgrounds.com/audio/listen/1622289',
     songTitle: custom.name,
     artist: custom.creatorUsername,
-    bpm: 135,
+    bpm,
     durationSeconds: custom.durationSeconds || 40,
     themeColor: custom.themeColor || '#38bdf8',
     bgColor: custom.bgColor || '#090a0f',
-    bgImage: custom.bgImage,
+    bgImage: bgImage,
     description: `by ${custom.creatorUsername} • ${custom.anthills.length} anthills, ${custom.cocoons.length} cocoons, ${custom.bossCount} bosses`,
     spawnerCount: Math.max(1, custom.anthills.length),
-    maxAnts: 80,
+    maxAnts,
     isEndless: false,
     mechanicId: 'custom_level',
     mechanicName: 'custom chamber',
@@ -972,10 +1263,16 @@ export function customLevelToLevelConfig(
     isRated,
     isCustom: true,
     customLevelId: custom.id,
-    customPowerUps: custom.customPowerUps || [],
-    customSpeedPortals: custom.customSpeedPortals || [],
+    customPowerUps: powerUps,
+    customSpeedPortals: portals,
     customData: {
       ...custom,
+      bgImage,
+      customPowerUps: powerUps,
+      customSpeedPortals: portals,
+      difficulty: chosenDifficulty,
+      ratedByMisiori: isRatedByMisiori,
+      verified: Boolean(custom.verified || isRatedByMisiori),
       formations:
         (Array.isArray(custom.formations) && custom.formations.length > 0 ? custom.formations : null) ||
         (custom.powerUpChances && Array.isArray((custom.powerUpChances as any).formations) && (custom.powerUpChances as any).formations.length > 0 ? (custom.powerUpChances as any).formations : null) ||
