@@ -13,6 +13,7 @@ import {
   Upload,
   Type,
   X,
+  Info,
 } from 'lucide-react';
 import {
   CustomLevel,
@@ -28,6 +29,7 @@ import {
 import { PlayerProfile } from '../types/game';
 import { DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
+import { ChamberInfoModal, ChamberInfoData } from './ChamberInfoModal';
 
 interface YourLevelsProps {
   profile: PlayerProfile;
@@ -52,6 +54,7 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [infoModalTarget, setInfoModalTarget] = useState<ChamberInfoData | null>(null);
 
   const loadLevels = async () => {
     const list = await fetchUserCreatedLevels(profile);
@@ -195,9 +198,6 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
             <h2 className="font-['Caveat'] text-3xl text-neutral-300 lowercase">
               u have no levels yet!
             </h2>
-            <p className="font-['Patrick_Hand'] text-base text-neutral-500 lowercase max-w-sm">
-              design ur own chamber with custom anthills, cocoons, bosses, and power-up chances.
-            </p>
             <button
               onClick={() => {
                 sound.playClick();
@@ -235,6 +235,25 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
                           title="rename chamber (preserves verification!)"
                         >
                           <Type className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sound.playClick();
+                            setInfoModalTarget({
+                              id: lvl.id,
+                              name: lvl.name,
+                              difficulty: lvl.difficulty,
+                              creatorUsername: lvl.creatorUsername || profile.username,
+                              description: `${lvl.anthills.length} anthills • ${lvl.cocoons.length} cocoons • ${lvl.bossCount} bosses`,
+                              isOfficial: false,
+                            });
+                          }}
+                          className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800/80 transition-colors cursor-pointer"
+                          title="chamber info"
+                        >
+                          <Info className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
@@ -474,6 +493,16 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
               </button>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Chamber Info Modal */}
+      <AnimatePresence>
+        {infoModalTarget && (
+          <ChamberInfoModal
+            info={infoModalTarget}
+            onClose={() => setInfoModalTarget(null)}
+          />
         )}
       </AnimatePresence>
     </div>

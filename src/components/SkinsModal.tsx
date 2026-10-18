@@ -229,8 +229,8 @@ export const SkinsModal: React.FC<SkinsModalProps> = ({
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs font-['Patrick_Hand'] text-neutral-300 bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-700 lowercase">
-                          <Lock className="w-3 h-3 text-neutral-400" />
-                          {skin.cost}
+                          <Box className="w-3 h-3 text-white" />
+                          <span>{skin.cost}</span>
                         </span>
                       )}
                     </div>

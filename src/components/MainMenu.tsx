@@ -75,19 +75,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
-    const antCount = 35;
+    const antCount = 42;
     const ants = Array.from({ length: antCount }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
       vx: (Math.random() - 0.5) * 1.5,
       vy: (Math.random() - 0.5) * 1.5,
-      size: Math.random() * 2 + 5,
-      legPhase: Math.random() * 20,
-      opacity: Math.random() * 0.35 + 0.15,
+      size: Math.random() * 1.0 + 2.6,
+      opacity: Math.random() * 0.25 + 0.65,
     }));
 
     const render = () => {
-      ctx.fillStyle = '#090a0f';
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
       // Soft faint grid dots
@@ -98,15 +97,26 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         }
       }
 
-      // Draw subtle minimalistic background ants
+      // Draw active, sleek, tiny background ants (no hands/legs)
       ants.forEach((ant) => {
         const dx = mouseX - ant.x;
         const dy = mouseY - ant.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist < 100 && dist > 5) {
-          ant.vx -= (dx / dist) * 0.12;
-          ant.vy -= (dy / dist) * 0.12;
+        if (dist < 90 && dist > 5) {
+          ant.vx -= (dx / dist) * 0.14;
+          ant.vy -= (dy / dist) * 0.14;
+        }
+
+        // Slight wander
+        ant.vx += (Math.random() - 0.5) * 0.06;
+        ant.vy += (Math.random() - 0.5) * 0.06;
+
+        // Speed clamping
+        const spd = Math.hypot(ant.vx, ant.vy);
+        if (spd > 1.8) {
+          ant.vx = (ant.vx / spd) * 1.8;
+          ant.vy = (ant.vy / spd) * 1.8;
         }
 
         ant.x += ant.vx;
@@ -118,21 +128,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         if (ant.y > height - 10) ant.vy = -Math.abs(ant.vy);
 
         const angle = Math.atan2(ant.vy, ant.vx);
-        ant.legPhase += 0.2;
 
         ctx.save();
         ctx.translate(ant.x, ant.y);
         ctx.rotate(angle);
-        ctx.fillStyle = `rgba(200, 210, 230, ${ant.opacity})`;
 
-        // Body
+        // Body color
+        ctx.fillStyle = `rgba(240, 240, 248, ${ant.opacity})`;
+
+        // Abdomen
         ctx.beginPath();
-        ctx.ellipse(0, 0, ant.size * 0.7, ant.size * 0.35, 0, 0, Math.PI * 2);
+        ctx.ellipse(-ant.size * 0.45, 0, ant.size * 0.5, ant.size * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Thorax
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ant.size * 0.28, ant.size * 0.22, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Head
         ctx.beginPath();
-        ctx.arc(ant.size * 0.6, 0, ant.size * 0.25, 0, Math.PI * 2);
+        ctx.arc(ant.size * 0.42, 0, ant.size * 0.22, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -154,7 +170,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const claimableCount = getClaimableCount(profile);
 
   return (
-    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between p-4 sm:p-6 select-none">
+    <div className="relative w-screen h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between p-4 sm:p-6 select-none bg-black">
       {/* Background Canvas */}
       <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />
 

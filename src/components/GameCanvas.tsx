@@ -20,6 +20,7 @@ import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
 import { RotateCcw, Box, Shield, Zap, Sparkles } from 'lucide-react';
 import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations, isLevelRated } from '../lib/customLevels';
+import { incrementLevelAttempts } from '../lib/attempts';
 
 // === HANDWRITTEN FONT CONSTANTS ===
 const HAND_FONT = "'Patrick_Hand', cursive";
@@ -847,6 +848,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   useEffect(() => {
     sound.startLevelBgm(level.id, level.bpm);
+    incrementLevelAttempts(level.id, level.customLevelId);
     return () => {
       sound.stopBgm();
     };
@@ -2397,7 +2399,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (shakeRef.current < 0.5) shakeRef.current = 0;
       }
 
-      ctx.fillStyle = level.bgColor || '#000000';
+      const resolvedBg = (!level.bgColor || level.bgColor === '#090a0f') ? '#000000' : level.bgColor;
+      ctx.fillStyle = resolvedBg;
       ctx.fillRect(0, 0, width, height);
 
       // Render custom uploaded background image if present

@@ -5,7 +5,7 @@ import {
   X,
   Clock,
   Sparkles,
-  Cookie,
+  Box,
   Target,
   Zap,
   Shield,
@@ -77,8 +77,9 @@ export const DailyChallengesModal: React.FC<DailyChallengesModalProps> = ({
         return <Flame className="w-5 h-5 text-rose-400" />;
       case 'Target':
         return <Target className="w-5 h-5 text-cyan-400" />;
+      case 'Box':
       case 'Cookie':
-        return <Cookie className="w-5 h-5 text-amber-400" />;
+        return <Box className="w-5 h-5 text-white" />;
       case 'Shield':
         return <Shield className="w-5 h-5 text-blue-400" />;
       case 'Zap':

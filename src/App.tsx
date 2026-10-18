@@ -71,7 +71,7 @@ export default function App() {
     }
   }, [view, selectedLevel]);
 
-  // Start or stop menu BGM based on view
+  // Start or stop procedural menu BGM based on view
   useEffect(() => {
     if (view === 'menu' || view === 'level_select') {
       sound.startMenuBgm();

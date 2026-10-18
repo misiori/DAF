@@ -11,6 +11,7 @@ import {
   Play,
   Monitor,
   X,
+  Info,
 } from 'lucide-react';
 import { LevelConfig, PlayerProfile } from '../types/game';
 import {
@@ -24,6 +25,7 @@ import {
 import { YourLevels } from './YourLevels';
 import { LevelEditor } from './LevelEditor';
 import { DiscoverLevels } from './DiscoverLevels';
+import { ChamberInfoModal, ChamberInfoData } from './ChamberInfoModal';
 import { AmbientAntBackground } from './AmbientAntBackground';
 import { LEVELS, FREE_MODE_LEVEL, DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
@@ -74,6 +76,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
   const [selectedOfficialLevel, setSelectedOfficialLevel] = useState<LevelConfig>(LEVELS[0]);
   const [showOfficialModal, setShowOfficialModal] = useState<boolean>(false);
+  const [chamberInfoTarget, setChamberInfoTarget] = useState<ChamberInfoData | null>(null);
 
   const isLevelBeaten = (lvlId: number) => {
     const numId = Number(lvlId);
@@ -152,6 +155,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
   if (subView === 'editor') {
     return (
       <LevelEditor
+        key={editingLevel?.id || 'new_level'}
         initialLevel={editingLevel || getLastEditingLevel()}
         profile={profile}
         onSave={(lvl) => {
@@ -285,9 +289,31 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="font-['Patrick_Hand'] text-sm text-neutral-500">
-                        {isFree ? '∞' : lvl.id < 10 ? `#0${lvl.id}` : `#${lvl.id}`}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-['Patrick_Hand'] text-sm text-neutral-500">
+                          {isFree ? '∞' : lvl.id < 10 ? `#0${lvl.id}` : `#${lvl.id}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sound.playClick();
+                            setChamberInfoTarget({
+                              id: lvl.id,
+                              name: lvl.name,
+                              difficulty: lvl.difficulty,
+                              difficultyColor: diffColor,
+                              creatorUsername: 'misiori',
+                              description: lvl.mechanicHint || lvl.description,
+                              isOfficial: true,
+                            });
+                          }}
+                          className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                          title="chamber info"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <span
                         className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border"
                         style={{
@@ -368,6 +394,16 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                 </div>
               </motion.div>
             </div>
+          )}
+        </AnimatePresence>
+
+        {/* Chamber Info Modal */}
+        <AnimatePresence>
+          {chamberInfoTarget && (
+            <ChamberInfoModal
+              info={chamberInfoTarget}
+              onClose={() => setChamberInfoTarget(null)}
+            />
           )}
         </AnimatePresence>
       </div>

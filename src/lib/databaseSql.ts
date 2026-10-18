@@ -235,7 +235,14 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   creator_username TEXT NOT NULL,
   creator_avatar_url TEXT,
   theme_color TEXT DEFAULT '#38bdf8' NOT NULL,
-  bg_color TEXT DEFAULT '#090a0f' NOT NULL,
+  bg_color TEXT DEFAULT '#000000' NOT NULL,
+  bg_image TEXT,
+  bg_opacity INTEGER DEFAULT 40 NOT NULL,
+  music_track_id TEXT,
+  song_title TEXT,
+  artist TEXT,
+  song_url TEXT,
+  bpm INTEGER,
   anthills JSONB DEFAULT '[]'::jsonb NOT NULL,
   cocoons JSONB DEFAULT '[]'::jsonb NOT NULL,
   boss_count INTEGER DEFAULT 1 NOT NULL,
@@ -246,6 +253,9 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   published BOOLEAN DEFAULT false NOT NULL,
   plays INTEGER DEFAULT 0 NOT NULL,
   formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL,
+  custom_power_ups JSONB DEFAULT '[]'::jsonb NOT NULL,
+  custom_speed_portals JSONB DEFAULT '[]'::jsonb NOT NULL,
+  rated_by_misiori BOOLEAN DEFAULT false NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -260,7 +270,110 @@ BEGIN
   ) THEN
     ALTER TABLE public.custom_levels ADD COLUMN formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bg_image'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bg_image TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bg_opacity'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bg_opacity INTEGER DEFAULT 40 NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'music_track_id'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN music_track_id TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'song_title'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN song_title TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'artist'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN artist TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'song_url'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN song_url TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bpm'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bpm INTEGER;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'custom_power_ups'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN custom_power_ups JSONB DEFAULT '[]'::jsonb NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'custom_speed_portals'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN custom_speed_portals JSONB DEFAULT '[]'::jsonb NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'rated_by_misiori'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN rated_by_misiori BOOLEAN DEFAULT false NOT NULL;
+  END IF;
 END $$;
+
+-- 11. Level Attempts Table (Tracks attempts per level)
+CREATE TABLE IF NOT EXISTS public.level_attempts (
+  level_id TEXT PRIMARY KEY,
+  attempts INTEGER DEFAULT 0 NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.level_attempts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public level attempts are viewable by everyone" ON public.level_attempts;
+CREATE POLICY "Public level attempts are viewable by everyone" ON public.level_attempts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Level attempts can be updated by anyone" ON public.level_attempts;
+CREATE POLICY "Level attempts can be updated by anyone" ON public.level_attempts FOR ALL USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_custom_levels_creator_id ON public.custom_levels (creator_id);
 CREATE INDEX IF NOT EXISTS idx_custom_levels_published ON public.custom_levels (published, created_at DESC);
@@ -300,7 +413,14 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   creator_username TEXT NOT NULL,
   creator_avatar_url TEXT,
   theme_color TEXT DEFAULT '#38bdf8' NOT NULL,
-  bg_color TEXT DEFAULT '#090a0f' NOT NULL,
+  bg_color TEXT DEFAULT '#000000' NOT NULL,
+  bg_image TEXT,
+  bg_opacity INTEGER DEFAULT 40 NOT NULL,
+  music_track_id TEXT,
+  song_title TEXT,
+  artist TEXT,
+  song_url TEXT,
+  bpm INTEGER,
   anthills JSONB DEFAULT '[]'::jsonb NOT NULL,
   cocoons JSONB DEFAULT '[]'::jsonb NOT NULL,
   boss_count INTEGER DEFAULT 1 NOT NULL,
@@ -311,6 +431,9 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   published BOOLEAN DEFAULT false NOT NULL,
   plays INTEGER DEFAULT 0 NOT NULL,
   formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL,
+  custom_power_ups JSONB DEFAULT '[]'::jsonb NOT NULL,
+  custom_speed_portals JSONB DEFAULT '[]'::jsonb NOT NULL,
+  rated_by_misiori BOOLEAN DEFAULT false NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -324,6 +447,96 @@ BEGIN
       AND column_name = 'formations'
   ) THEN
     ALTER TABLE public.custom_levels ADD COLUMN formations JSONB DEFAULT '["direct"]'::jsonb NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bg_image'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bg_image TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bg_opacity'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bg_opacity INTEGER DEFAULT 40 NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'music_track_id'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN music_track_id TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'song_title'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN song_title TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'artist'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN artist TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'song_url'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN song_url TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'bpm'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN bpm INTEGER;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'custom_power_ups'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN custom_power_ups JSONB DEFAULT '[]'::jsonb NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'custom_speed_portals'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN custom_speed_portals JSONB DEFAULT '[]'::jsonb NOT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'custom_levels' 
+      AND column_name = 'rated_by_misiori'
+  ) THEN
+    ALTER TABLE public.custom_levels ADD COLUMN rated_by_misiori BOOLEAN DEFAULT false NOT NULL;
   END IF;
 END $$;
 

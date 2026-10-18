@@ -55,7 +55,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   onVerifyAndPlay,
   onBack,
 }) => {
-  const [levelId] = useState(
+  const [levelId, setLevelId] = useState(
     initialLevel?.id || `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   );
   const [name, setName] = useState(initialLevel?.name || 'my chamber');
@@ -123,33 +123,14 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     return ['direct']; // default is one direction
   });
 
-  // Sync state if initialLevel prop updates (e.g. after verification or editing level selection)
+  // Stop audio preview when editor unmounts
   useEffect(() => {
-    if (initialLevel) {
-      if (initialLevel.name) setName(initialLevel.name);
-      if (initialLevel.themeColor) setThemeColor(initialLevel.themeColor);
-      const bg = initialLevel.bgImage || (initialLevel.powerUpChances as any)?.bgImage;
-      if (bg !== undefined) setBgImage(bg);
-      const op = initialLevel.bgOpacity ?? (initialLevel.powerUpChances as any)?.bgOpacity;
-      if (op !== undefined) setBgOpacity(op);
-      if (initialLevel.anthills && initialLevel.anthills.length > 0) setAnthills(initialLevel.anthills);
-      if (initialLevel.cocoons) setCocoons(initialLevel.cocoons);
-      const ups = initialLevel.customPowerUps || (initialLevel.powerUpChances as any)?.customPowerUps;
-      if (ups) setCustomPowerUps(ups);
-      const ports = initialLevel.customSpeedPortals || (initialLevel.powerUpChances as any)?.customSpeedPortals;
-      if (ports) setCustomSpeedPortals(ports);
-      if (initialLevel.bossCount !== undefined) setBossCount(initialLevel.bossCount);
-      if (initialLevel.durationSeconds !== undefined) setDurationSeconds(initialLevel.durationSeconds);
-      if (initialLevel.powerUpChances) setPowerUpChances(initialLevel.powerUpChances);
-      const diff =
-        (initialLevel.difficulty && initialLevel.difficulty !== 'Unrated')
-          ? initialLevel.difficulty
-          : (initialLevel.powerUpChances as any)?.difficulty;
-      if (diff && diff !== 'Unrated') setDifficulty(diff);
-      if (initialLevel.verified !== undefined) setVerified(initialLevel.verified);
-      if (initialLevel.published !== undefined) setPublished(initialLevel.published);
-    }
-  }, [initialLevel?.id, initialLevel?.updatedAt]);
+    return () => {
+      sound.stopPreview();
+    };
+  }, []);
+
+
 
   const handleToggleFormation = (f: AntFormation) => {
     sound.playClick();
@@ -185,7 +166,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     creatorUsername: profile.username || 'creator',
     creatorAvatarUrl: profile.avatar_url,
     themeColor,
-    bgColor: '#090a0f',
+    bgColor: '#000000',
     bgImage,
     bgOpacity,
     anthills,
@@ -209,14 +190,21 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     plays: initialLevel?.plays || 0,
     formations: formations.length > 0 ? formations : ['direct'],
     createdAt: initialLevel?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    updatedAt: initialLevel?.updatedAt || new Date().toISOString(),
   });
 
-  // Always keep last editing level cached in localStorage so test play & exit never loses work
+  // Keep last editing level cached in localStorage cleanly without triggering parent re-render loops
+  const getCurrentLevelRef = useRef(getCurrentLevel);
+  getCurrentLevelRef.current = getCurrentLevel;
+
   useEffect(() => {
-    const lvl = getCurrentLevel();
-    saveLastEditingLevel(lvl);
+    const timer = setTimeout(() => {
+      const lvl = getCurrentLevelRef.current();
+      saveLastEditingLevel(lvl);
+    }, 400);
+    return () => clearTimeout(timer);
   }, [
+    levelId,
     name,
     themeColor,
     bgImage,
@@ -679,7 +667,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
           <div
             ref={arenaRef}
             onClick={handleArenaClick}
-            className="relative flex-1 w-full rounded-2xl bg-[#090a0f] border-2 cursor-crosshair overflow-hidden shadow-inner flex items-center justify-center"
+            className="relative flex-1 w-full rounded-2xl bg-black border-2 cursor-crosshair overflow-hidden shadow-inner flex items-center justify-center"
             style={{
               borderColor: themeColor,
               boxShadow: `0 0 25px ${themeColor}25 inset`,
@@ -940,6 +928,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               </span>
             </div>
           </div>
+
 
           {/* Chamber Difficulty & Speed Selector */}
           <div className="pt-2 border-t border-neutral-800/80">

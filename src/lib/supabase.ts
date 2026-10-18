@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS public.custom_levels (
   creator_username TEXT NOT NULL,
   creator_avatar_url TEXT,
   theme_color TEXT DEFAULT '#38bdf8' NOT NULL,
-  bg_color TEXT DEFAULT '#090a0f' NOT NULL,
+  bg_color TEXT DEFAULT '#000000' NOT NULL,
   anthills JSONB DEFAULT '[]'::jsonb NOT NULL,
   cocoons JSONB DEFAULT '[]'::jsonb NOT NULL,
   boss_count INTEGER DEFAULT 1 NOT NULL,

@@ -30,6 +30,11 @@ export interface PowerUpChances {
   customSpeedPortals?: CustomSpeedPortalPlacement[];
   bgImage?: string;
   bgOpacity?: number;
+  musicTrackId?: string;
+  songTitle?: string;
+  artist?: string;
+  songUrl?: string;
+  bpm?: number;
   difficulty?: CustomLevelDifficulty;
   ratedByMisiori?: boolean;
 }
@@ -53,6 +58,11 @@ export interface CustomLevel {
   bgColor?: string;
   bgImage?: string;
   bgOpacity?: number;
+  musicTrackId?: string;
+  songTitle?: string;
+  artist?: string;
+  songUrl?: string;
+  bpm?: number;
   anthills: CustomAnthillPlacement[];
   cocoons: CustomCocoonPlacement[];
   bossCount: number;
@@ -288,7 +298,7 @@ export async function fetchDiscoverLevels(
         creatorUsername: row.creator_username || row.creatorUsername || 'player',
         creatorAvatarUrl: row.creator_avatar_url || row.creatorAvatarUrl,
         themeColor: row.theme_color || row.themeColor || '#38bdf8',
-        bgColor: row.bg_color || row.bgColor || '#090a0f',
+        bgColor: row.bg_color || row.bgColor || '#000000',
         bgImage: row.bg_image || row.bgImage || row.power_up_chances?.bgImage,
         anthills: row.anthills || [],
         cocoons: row.cocoons || [],
@@ -439,8 +449,14 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
           creatorUsername: row.creator_username || profile.username,
           creatorAvatarUrl: row.creator_avatar_url,
           themeColor: row.theme_color || '#38bdf8',
-          bgColor: row.bg_color || '#090a0f',
+          bgColor: row.bg_color || '#000000',
           bgImage: row.bg_image || row.bgImage || puc.bgImage,
+          bgOpacity: row.bg_opacity ?? row.bgOpacity ?? puc.bgOpacity ?? 40,
+          musicTrackId: row.music_track_id || row.musicTrackId || puc.musicTrackId,
+          songTitle: row.song_title || row.songTitle || puc.songTitle,
+          artist: row.artist || puc.artist,
+          songUrl: row.song_url || row.songUrl || puc.songUrl,
+          bpm: row.bpm || puc.bpm,
           anthills: row.anthills || [],
           cocoons: row.cocoons || [],
           customPowerUps:
@@ -478,30 +494,53 @@ export async function fetchUserCreatedLevels(profile?: PlayerProfile): Promise<C
       const mergedMap = new Map<string, CustomLevel>();
       dbLevels.forEach((dbLvl) => {
         const local = localMap.get(dbLvl.id);
-        const resolvedBgImage = dbLvl.bgImage || local?.bgImage;
+        const resolvedBgImage = local?.bgImage || dbLvl.bgImage;
+        const resolvedBgOpacity = local?.bgOpacity ?? dbLvl.bgOpacity ?? 40;
         const resolvedPowerUps =
-          (dbLvl.customPowerUps && dbLvl.customPowerUps.length > 0)
-            ? dbLvl.customPowerUps
-            : (local?.customPowerUps || []);
+          (local?.customPowerUps && local.customPowerUps.length > 0)
+            ? local.customPowerUps
+            : (dbLvl.customPowerUps || []);
         const resolvedPortals =
-          (dbLvl.customSpeedPortals && dbLvl.customSpeedPortals.length > 0)
-            ? dbLvl.customSpeedPortals
-            : (local?.customSpeedPortals || []);
+          (local?.customSpeedPortals && local.customSpeedPortals.length > 0)
+            ? local.customSpeedPortals
+            : (dbLvl.customSpeedPortals || []);
 
-        const merged: CustomLevel = {
-          ...dbLvl,
-          bgImage: resolvedBgImage,
-          customPowerUps: resolvedPowerUps,
-          customSpeedPortals: resolvedPortals,
-          powerUpChances: {
-            ...(dbLvl.powerUpChances || {}),
-            ...(local?.powerUpChances || {}),
+        const localTime = local?.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+        const dbTime = dbLvl.updatedAt ? new Date(dbLvl.updatedAt).getTime() : 0;
+
+        let merged: CustomLevel;
+        if (local && (!dbLvl.updatedAt || localTime >= dbTime)) {
+          // Local changes are newer! Retain local modifications
+          merged = {
+            ...dbLvl,
+            ...local,
+            plays: Math.max(dbLvl.plays || 0, local.plays || 0),
+            ratedByMisiori: Boolean(dbLvl.ratedByMisiori || local.ratedByMisiori),
+          };
+        } else {
+          merged = {
+            ...local,
+            ...dbLvl,
+            bgImage: resolvedBgImage,
+            bgOpacity: resolvedBgOpacity,
             customPowerUps: resolvedPowerUps,
             customSpeedPortals: resolvedPortals,
-            bgImage: resolvedBgImage,
-            difficulty: dbLvl.difficulty,
-          },
-        };
+            musicTrackId: dbLvl.musicTrackId || local?.musicTrackId,
+            songTitle: dbLvl.songTitle || local?.songTitle,
+            artist: dbLvl.artist || local?.artist,
+            songUrl: dbLvl.songUrl || local?.songUrl,
+            bpm: dbLvl.bpm || local?.bpm,
+            powerUpChances: {
+              ...(dbLvl.powerUpChances || {}),
+              ...(local?.powerUpChances || {}),
+              customPowerUps: resolvedPowerUps,
+              customSpeedPortals: resolvedPortals,
+              bgImage: resolvedBgImage,
+              bgOpacity: resolvedBgOpacity,
+              difficulty: dbLvl.difficulty,
+            },
+          };
+        }
         mergedMap.set(merged.id, merged);
       });
       localList.forEach((l) => {
@@ -576,17 +615,36 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
       ? (level.formations as AntFormation[])
       : (['direct'] as AntFormation[]);
 
+  const bgOpacity = level.bgOpacity ?? (level.powerUpChances as any)?.bgOpacity ?? 40;
+  const musicTrackId = level.musicTrackId ?? (level.powerUpChances as any)?.musicTrackId;
+  const songTitle = level.songTitle ?? (level.powerUpChances as any)?.songTitle;
+  const artist = level.artist ?? (level.powerUpChances as any)?.artist;
+  const songUrl = level.songUrl ?? (level.powerUpChances as any)?.songUrl;
+  const bpm = level.bpm ?? (level.powerUpChances as any)?.bpm;
+
   const updatedLvl: CustomLevel = {
     ...level,
     creatorId,
     creatorUsername,
     formations: directFormations,
+    bgOpacity,
+    musicTrackId,
+    songTitle,
+    artist,
+    songUrl,
+    bpm,
     powerUpChances: {
       ...(level.powerUpChances || {}),
       formations: directFormations,
       customPowerUps: level.customPowerUps || [],
       customSpeedPortals: level.customSpeedPortals || [],
       bgImage: level.bgImage,
+      bgOpacity,
+      musicTrackId,
+      songTitle,
+      artist,
+      songUrl,
+      bpm,
       difficulty: level.difficulty,
     },
     updatedAt: new Date().toISOString(),
@@ -609,6 +667,21 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
     if (userKey !== LOCAL_DRAFTS_KEY) {
       localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(list));
     }
+
+    // Keep community cache updated as well if present
+    try {
+      const commRaw = localStorage.getItem(LOCAL_COMMUNITY_CACHE_KEY);
+      if (commRaw) {
+        const commList = JSON.parse(commRaw);
+        if (Array.isArray(commList)) {
+          const cIdx = commList.findIndex((l: any) => l && l.id === updatedLvl.id);
+          if (cIdx >= 0) {
+            commList[cIdx] = updatedLvl;
+            localStorage.setItem(LOCAL_COMMUNITY_CACHE_KEY, JSON.stringify(commList));
+          }
+        }
+      }
+    } catch (_) {}
   } catch (e) {
     console.warn('Error saving draft level to localStorage', e);
   }
@@ -623,8 +696,14 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
         creator_username: profile.username || 'creator',
         creator_avatar_url: profile.avatar_url,
         theme_color: updatedLvl.themeColor,
-        bg_color: updatedLvl.bgColor || '#090a0f',
+        bg_color: updatedLvl.bgColor || '#000000',
         bg_image: updatedLvl.bgImage,
+        bg_opacity: updatedLvl.bgOpacity,
+        music_track_id: updatedLvl.musicTrackId,
+        song_title: updatedLvl.songTitle,
+        artist: updatedLvl.artist,
+        song_url: updatedLvl.songUrl,
+        bpm: updatedLvl.bpm,
         anthills: updatedLvl.anthills,
         cocoons: updatedLvl.cocoons,
         custom_power_ups: updatedLvl.customPowerUps || [],
@@ -636,6 +715,12 @@ export async function saveDraftLevel(level: CustomLevel, profile?: PlayerProfile
           customPowerUps: updatedLvl.customPowerUps || [],
           customSpeedPortals: updatedLvl.customSpeedPortals || [],
           bgImage: updatedLvl.bgImage,
+          bgOpacity: updatedLvl.bgOpacity,
+          musicTrackId: updatedLvl.musicTrackId,
+          songTitle: updatedLvl.songTitle,
+          artist: updatedLvl.artist,
+          songUrl: updatedLvl.songUrl,
+          bpm: updatedLvl.bpm,
           difficulty: updatedLvl.difficulty,
         },
         duration_seconds: updatedLvl.durationSeconds,
@@ -865,7 +950,7 @@ export async function publishCustomLevel(
       creator_username: profile.username,
       creator_avatar_url: profile.avatar_url,
       theme_color: publishedLevel.themeColor,
-      bg_color: publishedLevel.bgColor || '#090a0f',
+      bg_color: publishedLevel.bgColor || '#000000',
       bg_image: publishedLevel.bgImage,
       anthills: publishedLevel.anthills,
       cocoons: publishedLevel.cocoons,
@@ -1231,11 +1316,9 @@ export function customLevelToLevelConfig(
 
   const bgImage = custom.bgImage || (custom.powerUpChances as any)?.bgImage;
 
-  // When Crazy difficulty is chosen, set BPM to 215 (exact BPM of Omega Extinction!)
   const isCrazy = chosenDifficulty === 'Crazy';
   const effectiveDifficulty: 'Easy' | 'Normal' | 'Hard' | 'Harder' | 'Insane' | 'Crazy' =
     chosenDifficulty === 'Unrated' ? 'Normal' : chosenDifficulty;
-  const bpm = isCrazy ? 215 : 135;
   const maxAnts = isCrazy ? 160 : 80;
 
   return {
@@ -1243,13 +1326,13 @@ export function customLevelToLevelConfig(
     name: custom.name,
     difficulty: effectiveDifficulty,
     difficultyColor: diffColorMap[chosenDifficulty] || '#38bdf8',
-    songUrl: isCrazy ? 'https://www.newgrounds.com/audio/listen/1424000' : 'https://www.newgrounds.com/audio/listen/1622289',
-    songTitle: custom.name,
-    artist: custom.creatorUsername,
-    bpm,
+    songUrl: '',
+    songTitle: '',
+    artist: '',
+    bpm: 128,
     durationSeconds: custom.durationSeconds || 40,
     themeColor: custom.themeColor || '#38bdf8',
-    bgColor: custom.bgColor || '#090a0f',
+    bgColor: custom.bgColor || '#000000',
     bgImage: bgImage,
     bgOpacity: custom.bgOpacity ?? (custom.powerUpChances as any)?.bgOpacity ?? 40,
     description: `by ${custom.creatorUsername} • ${custom.anthills.length} anthills, ${custom.cocoons.length} cocoons, ${custom.bossCount} bosses`,

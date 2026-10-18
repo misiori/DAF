@@ -10,6 +10,7 @@ import {
   Trash2,
   Star,
   X,
+  Info,
 } from 'lucide-react';
 import {
   CustomLevel,
@@ -27,6 +28,7 @@ import { PlayerProfile } from '../types/game';
 import { sound } from '../lib/audio';
 import { isMisioriUser } from '../lib/supabase';
 import { DIFFICULTY_COLORS } from '../lib/constants';
+import { ChamberInfoModal, ChamberInfoData } from './ChamberInfoModal';
 
 interface DiscoverLevelsProps {
   profile: PlayerProfile;
@@ -50,6 +52,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
   const [filterDifficulty, setFilterDifficulty] = useState('all');
   const [loading, setLoading] = useState(true);
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [infoModalTarget, setInfoModalTarget] = useState<ChamberInfoData | null>(null);
 
   // Rating modal for @misiori
   const [ratingLevel, setRatingLevel] = useState<CustomLevel | null>(null);
@@ -281,9 +284,31 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                   <div>
                     {/* Header: Title & Difficulty Badge (No color tags) */}
                     <div className="flex items-start justify-between gap-1 mb-1">
-                      <h3 className="font-['Caveat'] text-2xl text-white lowercase leading-tight truncate">
-                        {lvl.name}
-                      </h3>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <h3 className="font-['Caveat'] text-2xl text-white lowercase leading-tight truncate">
+                          {lvl.name}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sound.playClick();
+                            setInfoModalTarget({
+                              id: lvl.id,
+                              name: lvl.name,
+                              difficulty: lvl.difficulty,
+                              difficultyColor: diffColor,
+                              creatorUsername: lvl.creatorUsername,
+                              description: `${lvl.anthills.length} anthills • ${lvl.cocoons.length} cocoons • ${lvl.bossCount} bosses`,
+                              isOfficial: false,
+                            });
+                          }}
+                          className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
+                          title="chamber info"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
                       <span
                         className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border shrink-0"
@@ -514,6 +539,16 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Chamber Info Modal */}
+      <AnimatePresence>
+        {infoModalTarget && (
+          <ChamberInfoModal
+            info={infoModalTarget}
+            onClose={() => setInfoModalTarget(null)}
+          />
         )}
       </AnimatePresence>
     </div>

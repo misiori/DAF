@@ -20,6 +20,10 @@ class SoundSystem {
   private menuTimerId: number | null = null;
   private menuStep: number = 0;
 
+  // Real Audio Streaming (NCS MP3 Streams) & Preview
+  private bgmAudioElement: HTMLAudioElement | null = null;
+  private previewAudioElement: HTMLAudioElement | null = null;
+
   public init() {
     try {
       if (!this.ctx) {
@@ -74,6 +78,12 @@ class SoundSystem {
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.85, this.ctx.currentTime);
     }
+    if (this.bgmAudioElement) {
+      this.bgmAudioElement.volume = this.isMuted ? 0 : 0.65;
+    }
+    if (this.previewAudioElement) {
+      this.previewAudioElement.volume = this.isMuted ? 0 : 0.7;
+    }
     return this.isMuted;
   }
 
@@ -84,9 +94,29 @@ class SoundSystem {
   public setSpeedMultiplier(mult: SpeedMultiplier) {
     this.speedMultiplier = mult;
     this.playPortalSound(mult);
+    if (this.bgmAudioElement) {
+      try {
+        this.bgmAudioElement.playbackRate = Math.max(0.5, Math.min(2.0, mult));
+      } catch (_) {}
+    }
   }
 
-  // --- COOL MENU BGM ---
+  // Preview audio playback - disabled per user request
+  public previewTrack(_url: string) {
+    this.stopPreview();
+  }
+
+  public stopPreview() {
+    if (this.previewAudioElement) {
+      try {
+        this.previewAudioElement.pause();
+        this.previewAudioElement.currentTime = 0;
+      } catch (_) {}
+      this.previewAudioElement = null;
+    }
+  }
+
+  // --- PROCEDURAL MENU BGM (Built-in synthesizer beats) ---
   public startMenuBgm() {
     this.init();
     if (this.isPlayingMenuBgm) return;
@@ -180,13 +210,13 @@ class SoundSystem {
     }
   }
 
-  // --- LEVEL IN-GAME BGM ---
-  public startLevelBgm(levelId: number, bpm: number) {
+  // --- PROCEDURAL LEVEL IN-GAME BGM (Dynamic procedural synth beats) ---
+  public startLevelBgm(levelId: number = 1, bpm: number = 130, _songUrl?: string) {
     this.init();
     this.stopMenuBgm();
     this.stopBgm();
-    this.currentLevelId = levelId;
-    this.currentBpm = bpm;
+    this.currentLevelId = levelId || 1;
+    this.currentBpm = bpm || 130;
     this.isPlayingBgm = true;
     this.step = 0;
     this.scheduleNextBeat();
@@ -194,6 +224,13 @@ class SoundSystem {
 
   public stopBgm() {
     this.isPlayingBgm = false;
+    if (this.bgmAudioElement) {
+      try {
+        this.bgmAudioElement.pause();
+        this.bgmAudioElement.currentTime = 0;
+      } catch (_) {}
+      this.bgmAudioElement = null;
+    }
     if (this.timerId !== null) {
       window.clearTimeout(this.timerId);
       this.timerId = null;

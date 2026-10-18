@@ -48,8 +48,8 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
 
     // Generate ants matching main screen: white bugs running on black bg
     const ants = Array.from({ length: antCount }).map(() => {
-      const size = Math.random() * 2 + 4.8;
-      const speed = Math.random() * 0.6 + 1.0;
+      const size = Math.random() * 1.0 + 2.6;
+      const speed = Math.random() * 0.5 + 0.9;
 
       return {
         x: Math.random() * width,
@@ -58,8 +58,8 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
         vy: (Math.random() - 0.5) * speed,
         size,
         legPhase: Math.random() * 20,
-        opacity: Math.random() * 0.25 + 0.2,
-        tint: 'rgba(220, 230, 245, 0.95)',
+        opacity: Math.random() * 0.25 + 0.65,
+        tint: 'rgba(240, 245, 255, 0.95)',
       };
     });
 
@@ -167,18 +167,8 @@ export const AmbientAntBackground: React.FC<AmbientAntBackgroundProps> = ({
 
         // Head
         ctx.beginPath();
-        ctx.arc(ant.size * 0.45, 0, ant.size * 0.25, 0, Math.PI * 2);
+        ctx.arc(ant.size * 0.42, 0, ant.size * 0.22, 0, Math.PI * 2);
         ctx.fill();
-
-        // Little feelers
-        ctx.strokeStyle = ant.tint;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(ant.size * 0.5, -ant.size * 0.1);
-        ctx.lineTo(ant.size * 0.8, -ant.size * 0.3);
-        ctx.moveTo(ant.size * 0.5, ant.size * 0.1);
-        ctx.lineTo(ant.size * 0.8, ant.size * 0.3);
-        ctx.stroke();
 
         ctx.restore();
       });
