@@ -26,6 +26,7 @@ import { YourLevels } from './YourLevels';
 import { LevelEditor } from './LevelEditor';
 import { DiscoverLevels } from './DiscoverLevels';
 import { ChamberInfoModal, ChamberInfoData } from './ChamberInfoModal';
+import { FarmerStoryModal } from './FarmerStoryModal';
 import { AmbientAntBackground } from './AmbientAntBackground';
 import { LEVELS, FREE_MODE_LEVEL, DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
@@ -104,6 +105,44 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
 
   const beatenLevelsCount = LEVELS.filter((lvl) => isLevelBeaten(lvl.id)).length;
   const allLevelsBeaten = beatenLevelsCount >= LEVELS.length;
+
+  const isLevelUnlocked = (lvlId: number) => {
+    const numId = Number(lvlId);
+    // Chamber 1 is always unlocked
+    if (numId === 1) return true;
+    // Endless Free Mode (id 999) is unlocked only when all 23 levels are beaten
+    if (numId === 999) return allLevelsBeaten;
+    // Level N is unlocked only when level N - 1 is beaten
+    return isLevelBeaten(numId - 1);
+  };
+
+  const [showFarmerModal, setShowFarmerModal] = useState<boolean>(false);
+  const [farmerModalMode, setFarmerModalMode] = useState<'intro' | 'ending'>('intro');
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+
+  // Automatically show intro story on first visit to official levels, or ending story when all 23 are beaten
+  React.useEffect(() => {
+    if (subView === 'official') {
+      const introSeen = localStorage.getItem('antfarm_farmer_intro_seen');
+      const endingSeen = localStorage.getItem('antfarm_farmer_ending_seen');
+      if (!introSeen) {
+        setFarmerModalMode('intro');
+        setShowFarmerModal(true);
+      } else if (allLevelsBeaten && !endingSeen) {
+        setFarmerModalMode('ending');
+        setShowFarmerModal(true);
+      }
+    }
+  }, [subView, allLevelsBeaten]);
+
+  const handleCloseFarmerModal = () => {
+    if (farmerModalMode === 'intro') {
+      localStorage.setItem('antfarm_farmer_intro_seen', 'true');
+    } else {
+      localStorage.setItem('antfarm_farmer_ending_seen', 'true');
+    }
+    setShowFarmerModal(false);
+  };
 
   const filteredLevels =
     filterDifficulty === 'all'
@@ -210,10 +249,32 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
             official
           </div>
 
-          <div className="flex items-center gap-2 font-['Patrick_Hand'] text-sm text-neutral-400">
-            <span>{beatenLevelsCount} / 23 beaten</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                sound.playClick();
+                setFarmerModalMode(allLevelsBeaten ? 'ending' : 'intro');
+                setShowFarmerModal(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-400 text-neutral-200 font-['Patrick_Hand'] text-xs sm:text-sm lowercase transition-all cursor-pointer shadow-sm hover:scale-105"
+              title="read farmer story"
+            >
+              <span className="hidden sm:inline">{allLevelsBeaten ? 'farmer message' : 'farmer plot'}</span>
+              <span className="sm:hidden">plot</span>
+            </button>
+
+            <div className="font-['Patrick_Hand'] text-xs sm:text-sm text-neutral-400 whitespace-nowrap">
+              <span>{beatenLevelsCount} / 23 beaten</span>
+            </div>
           </div>
         </div>
+
+        {feedbackToast && (
+          <div className="relative z-30 my-2 p-2 rounded-2xl bg-neutral-950 border border-neutral-700 text-neutral-200 font-['Patrick_Hand'] text-sm lowercase text-center flex items-center justify-center gap-2 animate-fade-in shadow-lg">
+            <Lock className="w-4 h-4 text-neutral-400 shrink-0" />
+            <span>{feedbackToast}</span>
+          </div>
+        )}
 
         {/* Filter Tabs by Difficulty */}
         <div className="relative z-10 flex items-center gap-2 overflow-x-auto py-2.5 sm:py-3 shrink-0 no-scrollbar">
@@ -271,6 +332,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
             {filteredLevels.map((lvl) => {
               const progress = getLevelProgress(lvl.id);
               const isBeaten = isLevelBeaten(lvl.id);
+              const isUnlocked = isLevelUnlocked(lvl.id);
               const highScore = getLevelHighScore(lvl.id);
               const isFree = lvl.isEndless;
               const diffColor = DIFFICULTY_COLORS[lvl.difficulty] || '#3b82f6';
@@ -279,13 +341,27 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                 <motion.div
                   key={lvl.id}
                   onClick={() => {
+                    if (!isUnlocked) {
+                      sound.playHitSound();
+                      setFeedbackToast(
+                        lvl.id === 999
+                          ? 'beat all 23 official chambers to unlock free mode!'
+                          : `chamber #${lvl.id} is locked! beat chamber #${lvl.id - 1} first.`
+                      );
+                      setTimeout(() => setFeedbackToast(null), 3200);
+                      return;
+                    }
                     sound.playClick();
                     setSelectedOfficialLevel(lvl);
                     setShowOfficialModal(true);
                   }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="group relative p-3 sm:p-3.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border transition-all cursor-pointer flex flex-col justify-between bg-neutral-900/40 border-neutral-800/80 hover:bg-neutral-900/80 hover:border-neutral-500 shadow-sm"
+                  whileHover={isUnlocked ? { scale: 1.02 } : {}}
+                  whileTap={isUnlocked ? { scale: 0.98 } : {}}
+                  className={`group relative p-3 sm:p-3.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] border transition-all flex flex-col justify-between shadow-sm ${
+                    isUnlocked
+                      ? 'cursor-pointer bg-neutral-900/40 border-neutral-800/80 hover:bg-neutral-900/80 hover:border-neutral-500'
+                      : 'cursor-not-allowed bg-neutral-950/80 border-neutral-900 opacity-60'
+                  }`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
@@ -293,59 +369,77 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                         <span className="font-['Patrick_Hand'] text-sm text-neutral-500">
                           {isFree ? '∞' : lvl.id < 10 ? `#0${lvl.id}` : `#${lvl.id}`}
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            sound.playClick();
-                            setChamberInfoTarget({
-                              id: lvl.id,
-                              name: lvl.name,
-                              difficulty: lvl.difficulty,
-                              difficultyColor: diffColor,
-                              creatorUsername: 'misiori',
-                              description: lvl.mechanicHint || lvl.description,
-                              isOfficial: true,
-                            });
-                          }}
-                          className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-                          title="chamber info"
-                        >
-                          <Info className="w-3.5 h-3.5" />
-                        </button>
+                        {isUnlocked && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sound.playClick();
+                              setChamberInfoTarget({
+                                id: lvl.id,
+                                name: lvl.name,
+                                difficulty: lvl.difficulty,
+                                difficultyColor: diffColor,
+                                creatorUsername: 'misiori',
+                                description: lvl.mechanicHint || lvl.description,
+                                isOfficial: true,
+                              });
+                            }}
+                            className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                            title="chamber info"
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <span
                         className="text-xs font-['Patrick_Hand'] lowercase px-2 py-0.5 rounded-full border"
                         style={{
-                          color: diffColor,
-                          borderColor: `${diffColor}40`,
-                          backgroundColor: `${diffColor}10`,
+                          color: isUnlocked ? diffColor : '#737373',
+                          borderColor: isUnlocked ? `${diffColor}40` : '#404040',
+                          backgroundColor: isUnlocked ? `${diffColor}10` : 'transparent',
                         }}
                       >
-                        {lvl.difficulty.toLowerCase()}
+                        {isUnlocked ? lvl.difficulty.toLowerCase() : 'locked'}
                       </span>
                     </div>
 
                     <h3 className="font-['Caveat'] text-2xl text-neutral-100 truncate lowercase mb-1">
-                      {lvl.name}
+                      {isUnlocked ? lvl.name : '???'}
                     </h3>
                   </div>
 
-                  {/* Progress (Green if 100%) & Best PTS */}
+                  {/* Progress / Locked State */}
                   <div className="mt-2 pt-2 border-t border-neutral-800/60 flex items-center justify-between">
-                    <span
-                      className={`text-xs font-['Patrick_Hand'] lowercase ${
-                        isBeaten || progress >= 100
-                          ? 'text-emerald-400 font-bold'
-                          : 'text-neutral-400'
-                      }`}
-                    >
-                      {isBeaten || progress >= 100 ? '100%' : `${progress}%`}
-                    </span>
-                    <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
-                      best: {highScore.toLocaleString()} pts
-                    </span>
-                    <Play className="w-4 h-4 fill-neutral-300 text-neutral-300 group-hover:scale-110 transition-transform" />
+                    {isUnlocked ? (
+                      <>
+                        <span
+                          className={`text-xs font-['Patrick_Hand'] lowercase ${
+                            isBeaten || progress >= 100
+                              ? 'text-emerald-400 font-bold'
+                              : 'text-neutral-400'
+                          }`}
+                        >
+                          {isBeaten || progress >= 100 ? '100%' : `${progress}%`}
+                        </span>
+                        <span className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase">
+                          best: {highScore.toLocaleString()} pts
+                        </span>
+                        <Play className="w-4 h-4 fill-neutral-300 text-neutral-300 group-hover:scale-110 transition-transform" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-neutral-600" />
+                          <span>
+                            {lvl.id === 999
+                              ? 'beat all 23 to unlock'
+                              : `beat #${lvl.id - 1} to unlock`}
+                          </span>
+                        </span>
+                        <Lock className="w-4 h-4 text-neutral-600" />
+                      </>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -406,6 +500,13 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
             />
           )}
         </AnimatePresence>
+
+        {/* Farmer Story Modal (Plot & Ending) */}
+        <FarmerStoryModal
+          isOpen={showFarmerModal}
+          mode={farmerModalMode}
+          onClose={handleCloseFarmerModal}
+        />
       </div>
     );
   }
