@@ -12,6 +12,7 @@ import {
   Monitor,
   X,
   Info,
+  Music,
 } from 'lucide-react';
 import { LevelConfig, PlayerProfile } from '../types/game';
 import {
@@ -404,9 +405,15 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                       </span>
                     </div>
 
-                    <h3 className="font-['Caveat'] text-2xl text-neutral-100 truncate lowercase mb-1">
+                    <h3 className="font-['Caveat'] text-2xl text-neutral-100 truncate lowercase mb-0.5">
                       {isUnlocked ? lvl.name : '???'}
                     </h3>
+                    {isUnlocked && lvl.songTitle && (
+                      <div className="flex items-center gap-1 text-[11px] font-['Patrick_Hand'] text-neutral-400 lowercase truncate mb-1">
+                        <Music className="w-3 h-3 text-cyan-400 shrink-0" />
+                        <span className="truncate">{lvl.songTitle} • {lvl.bpm} bpm</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Progress / Locked State */}
@@ -464,6 +471,12 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                 <h2 className="font-['Caveat'] text-4xl text-white lowercase">
                   {selectedOfficialLevel.name}
                 </h2>
+                {selectedOfficialLevel.songTitle && (
+                  <div className="flex items-center justify-center gap-1.5 text-xs font-['Patrick_Hand'] text-cyan-400 lowercase">
+                    <Music className="w-3.5 h-3.5" />
+                    <span>soundtrack: {selectedOfficialLevel.songTitle} • {selectedOfficialLevel.bpm} bpm</span>
+                  </div>
+                )}
                 <p className="font-['Patrick_Hand'] text-base text-neutral-400 lowercase">
                   {selectedOfficialLevel.description}
                 </p>

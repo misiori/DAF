@@ -1,5 +1,6 @@
 import { LevelConfig, PlayerProfile, AntFormation, CustomPowerUpPlacement, CustomSpeedPortalPlacement } from '../types/game';
 import { supabase, supabaseAdmin, isMisioriUser } from './supabase';
+import { getSongById } from './songCatalog';
 
 export interface CustomAnthillPlacement {
   id: number;
@@ -1321,15 +1322,25 @@ export function customLevelToLevelConfig(
     chosenDifficulty === 'Unrated' ? 'Normal' : chosenDifficulty;
   const maxAnts = isCrazy ? 160 : 80;
 
+  const rawSongId =
+    custom.musicTrackId ||
+    (custom.powerUpChances as any)?.musicTrackId ||
+    (custom as any).songId ||
+    (custom.powerUpChances as any)?.songId ||
+    1;
+  const songIdNum = Math.max(1, Math.min(23, Number(rawSongId) || 1));
+  const song = getSongById(songIdNum);
+
   return {
     id: numId,
     name: custom.name,
     difficulty: effectiveDifficulty,
     difficultyColor: diffColorMap[chosenDifficulty] || '#38bdf8',
     songUrl: '',
-    songTitle: '',
-    artist: '',
-    bpm: 128,
+    songTitle: custom.songTitle || song.title,
+    artist: custom.artist || song.artist,
+    bpm: custom.bpm || song.bpm || 128,
+    songId: songIdNum,
     durationSeconds: custom.durationSeconds || 40,
     themeColor: custom.themeColor || '#38bdf8',
     bgColor: custom.bgColor || '#000000',
@@ -1353,6 +1364,11 @@ export function customLevelToLevelConfig(
     customSpeedPortals: portals,
     customData: {
       ...custom,
+      songId: songIdNum,
+      musicTrackId: String(songIdNum),
+      songTitle: custom.songTitle || song.title,
+      artist: custom.artist || song.artist,
+      bpm: custom.bpm || song.bpm || 128,
       bgImage,
       customPowerUps: powerUps,
       customSpeedPortals: portals,

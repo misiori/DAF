@@ -22,6 +22,10 @@ import {
   Snowflake,
   X,
   Gauge,
+  Music,
+  Square,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   CustomLevel,
@@ -39,6 +43,7 @@ import {
 import { PlayerProfile, AntFormation, CustomPowerUpPlacement, CustomSpeedPortalPlacement, SpeedMultiplier } from '../types/game';
 import { DIFFICULTY_COLORS } from '../lib/constants';
 import { sound } from '../lib/audio';
+import { SONG_CATALOG, getSongById } from '../lib/songCatalog';
 
 interface LevelEditorProps {
   initialLevel?: CustomLevel | null;
@@ -123,6 +128,17 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     return ['direct']; // default is one direction
   });
 
+  const [selectedSongId, setSelectedSongId] = useState<number>(() => {
+    const raw =
+      initialLevel?.musicTrackId ||
+      (initialLevel?.powerUpChances as any)?.musicTrackId ||
+      (initialLevel as any)?.songId ||
+      (initialLevel?.powerUpChances as any)?.songId;
+    return raw ? Math.max(1, Math.min(23, Number(raw))) : 1;
+  });
+  const [isMusicDropdownOpen, setIsMusicDropdownOpen] = useState(false);
+  const [previewingSongId, setPreviewingSongId] = useState<number | null>(null);
+
   // Stop audio preview when editor unmounts
   useEffect(() => {
     return () => {
@@ -130,7 +146,24 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     };
   }, []);
 
+  const handleTogglePreview = (sId: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    sound.playClick();
+    if (previewingSongId === sId) {
+      sound.stopPreview();
+      setPreviewingSongId(null);
+    } else {
+      sound.previewTrack(sId);
+      setPreviewingSongId(sId);
+    }
+  };
 
+  const handleSelectSong = (sId: number) => {
+    sound.playClick();
+    setSelectedSongId(sId);
+    setVerified(false);
+    setIsMusicDropdownOpen(false);
+  };
 
   const handleToggleFormation = (f: AntFormation) => {
     sound.playClick();
@@ -159,39 +192,51 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const arenaRef = useRef<HTMLDivElement | null>(null);
 
   // Construct current level object
-  const getCurrentLevel = (): CustomLevel => ({
-    id: levelId,
-    name: name.trim().toLowerCase() || 'unnamed farm',
-    creatorId: profile.id,
-    creatorUsername: profile.username || 'creator',
-    creatorAvatarUrl: profile.avatar_url,
-    themeColor,
-    bgColor: '#000000',
-    bgImage,
-    bgOpacity,
-    anthills,
-    cocoons,
-    customPowerUps,
-    customSpeedPortals,
-    bossCount,
-    powerUpChances: {
-      ...powerUpChances,
-      customPowerUps,
-      customSpeedPortals,
+  const getCurrentLevel = (): CustomLevel => {
+    const curSong = getSongById(selectedSongId);
+    return {
+      id: levelId,
+      name: name.trim().toLowerCase() || 'unnamed farm',
+      creatorId: profile.id,
+      creatorUsername: profile.username || 'creator',
+      creatorAvatarUrl: profile.avatar_url,
+      themeColor,
+      bgColor: '#000000',
       bgImage,
       bgOpacity,
-      formations: formations.length > 0 ? formations : ['direct'],
+      musicTrackId: String(selectedSongId),
+      songTitle: curSong.title,
+      artist: curSong.artist,
+      bpm: curSong.bpm,
+      anthills,
+      cocoons,
+      customPowerUps,
+      customSpeedPortals,
+      bossCount,
+      powerUpChances: {
+        ...powerUpChances,
+        musicTrackId: String(selectedSongId),
+        songId: selectedSongId,
+        songTitle: curSong.title,
+        artist: curSong.artist,
+        bpm: curSong.bpm,
+        customPowerUps,
+        customSpeedPortals,
+        bgImage,
+        bgOpacity,
+        formations: formations.length > 0 ? formations : ['direct'],
+        difficulty,
+      },
+      durationSeconds,
       difficulty,
-    },
-    durationSeconds,
-    difficulty,
-    verified,
-    published,
-    plays: initialLevel?.plays || 0,
-    formations: formations.length > 0 ? formations : ['direct'],
-    createdAt: initialLevel?.createdAt || new Date().toISOString(),
-    updatedAt: initialLevel?.updatedAt || new Date().toISOString(),
-  });
+      verified,
+      published,
+      plays: initialLevel?.plays || 0,
+      formations: formations.length > 0 ? formations : ['direct'],
+      createdAt: initialLevel?.createdAt || new Date().toISOString(),
+      updatedAt: initialLevel?.updatedAt || new Date().toISOString(),
+    };
+  };
 
   // Keep last editing level cached in localStorage cleanly without triggering parent re-render loops
   const getCurrentLevelRef = useRef(getCurrentLevel);
@@ -209,6 +254,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     themeColor,
     bgImage,
     bgOpacity,
+    selectedSongId,
     anthills,
     cocoons,
     customPowerUps,
@@ -1248,6 +1294,139 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 );
               })}
             </div>
+          </div>
+
+          {/* Farm Soundtrack / Song Selector */}
+          <div className="pt-2 border-t border-neutral-800/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase flex items-center gap-1.5">
+                <Music className="w-4 h-4 text-cyan-400" />
+                farm soundtrack
+              </span>
+              <span className="text-xs font-['Patrick_Hand'] text-cyan-400/90 lowercase">
+                23 unique songs
+              </span>
+            </div>
+
+            {/* Selected Song Preview Banner */}
+            {(() => {
+              const curSong = getSongById(selectedSongId);
+              const isCurPreviewing = previewingSongId === curSong.id;
+              return (
+                <div className="p-2.5 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 font-bold">
+                          #{curSong.id}
+                        </span>
+                        <span className="font-['Patrick_Hand'] text-base font-bold text-neutral-100 truncate">
+                          {curSong.title}
+                        </span>
+                      </div>
+                      <div className="text-xs font-['Patrick_Hand'] text-neutral-400 lowercase truncate mt-0.5">
+                        {curSong.genre} • {curSong.key} • <span className="text-neutral-200">{curSong.bpm} bpm</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => handleTogglePreview(curSong.id, e)}
+                        className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                          isCurPreviewing
+                            ? 'bg-rose-500/20 border-rose-500 text-rose-300 animate-pulse'
+                            : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-200'
+                        }`}
+                        title={isCurPreviewing ? 'stop preview' : 'preview song drop'}
+                      >
+                        {isCurPreviewing ? (
+                          <Square className="w-3.5 h-3.5 fill-current" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sound.playClick();
+                          setIsMusicDropdownOpen(!isMusicDropdownOpen);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 font-['Patrick_Hand'] text-xs lowercase flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>change</span>
+                        {isMusicDropdownOpen ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expandable 23-Song Selector Grid */}
+                  {isMusicDropdownOpen && (
+                    <div className="pt-2 border-t border-neutral-800 max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                      {SONG_CATALOG.map((s) => {
+                        const isSelected = selectedSongId === s.id;
+                        const isPreviewingThis = previewingSongId === s.id;
+                        return (
+                          <div
+                            key={s.id}
+                            onClick={() => handleSelectSong(s.id)}
+                            className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-cyan-950/40 border-cyan-500/80 text-white'
+                                : 'bg-neutral-950/70 border-neutral-800 hover:border-neutral-700 text-neutral-300'
+                            }`}
+                          >
+                            <div className="min-w-0 flex items-center gap-2">
+                              <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold shrink-0">
+                                #{s.id}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="font-['Patrick_Hand'] text-xs font-bold text-neutral-200 leading-tight truncate">
+                                  {s.title}
+                                </div>
+                                <div className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase leading-tight truncate">
+                                  {s.genre} • {s.bpm} bpm
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => handleTogglePreview(s.id, e)}
+                                className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                                  isPreviewingThis
+                                    ? 'bg-rose-500/20 border-rose-500 text-rose-300 animate-pulse'
+                                    : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-400 hover:text-white'
+                                }`}
+                                title={isPreviewingThis ? 'stop' : 'preview'}
+                              >
+                                {isPreviewingThis ? (
+                                  <Square className="w-3 h-3 fill-current" />
+                                ) : (
+                                  <Play className="w-3 h-3 fill-current" />
+                                )}
+                              </button>
+
+                              {isSelected && (
+                                <div className="w-4 h-4 rounded-full bg-cyan-500 text-black flex items-center justify-center">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Level Duration */}

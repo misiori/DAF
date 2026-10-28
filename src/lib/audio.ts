@@ -1,13 +1,16 @@
 import { SpeedMultiplier } from '../types/game';
+import { SONG_CATALOG, getSongById } from './songCatalog';
 
 // Professional Web Audio Rhythm Synthesizer
-// Clock-accurate lookahead scheduler, punchy 909 beats, lush analog chord pads,
-// sidechained pumping bass, and real-time beat pulse synchronization for GameCanvas.
+// 23 distinct, structurally evolving compositions for all 23 official farms & custom editor levels.
+// Features clock-accurate lookahead scheduling, distinct musical keys, multi-bar culmination drops,
+// quiet and calm menu audio, and real-time beat pulse synchronization for GameCanvas.
 class SoundSystem {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
   private masterGain: GainNode | null = null;
   private bgmGain: GainNode | null = null;
+  private menuGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
 
   // Master Stereo Space Echo / Delay bus
@@ -16,17 +19,21 @@ class SoundSystem {
   private delayFilter: BiquadFilterNode | null = null;
   private delaySendGain: GainNode | null = null;
 
-  // Clock-accurate Lookahead Scheduler (Zero Drift, Sub-millisecond precision)
+  // Clock-accurate Lookahead Scheduler (Sub-millisecond precision)
   private isPlayingBgm: boolean = false;
-  private currentBpm: number = 130;
+  private currentBpm: number = 128;
   private speedMultiplier: SpeedMultiplier = 1.0;
   private currentLevelId: number = 1;
   private scheduleTimerId: number | null = null;
   private nextNoteTime: number = 0;
   private bgmStartTime: number = 0;
-  private currentQuarterDuration: number = 60 / 130;
+  private currentQuarterDuration: number = 60 / 128;
 
-  // Menu BGM State
+  // Editor Preview State
+  private previewingSongId: number | null = null;
+  private isPreviewPlaying: boolean = false;
+
+  // Menu BGM State (Ultra-Calm, Soft, Cozy)
   private isPlayingMenuBgm: boolean = false;
   private menuTimerId: number | null = null;
   private nextMenuNoteTime: number = 0;
@@ -46,14 +53,19 @@ class SoundSystem {
         this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
         this.masterGain.connect(this.ctx.destination);
 
-        // BGM Bus
+        // BGM Bus (Dynamic level music)
         this.bgmGain = this.ctx.createGain();
-        this.bgmGain.gain.setValueAtTime(0.72, this.ctx.currentTime);
+        this.bgmGain.gain.setValueAtTime(0.70, this.ctx.currentTime);
         this.bgmGain.connect(this.masterGain);
+
+        // Menu Bus (Extra quiet, gentle, relaxing atmosphere)
+        this.menuGain = this.ctx.createGain();
+        this.menuGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+        this.menuGain.connect(this.masterGain);
 
         // SFX Bus
         this.sfxGain = this.ctx.createGain();
-        this.sfxGain.gain.setValueAtTime(0.78, this.ctx.currentTime);
+        this.sfxGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
         this.sfxGain.connect(this.masterGain);
 
         // Space Delay / Tape Echo
@@ -129,7 +141,7 @@ class SoundSystem {
 
       const newEffectiveBpm = Math.max(60, this.currentBpm * this.speedMultiplier);
       const newQuarterDuration = 60 / newEffectiveBpm;
-      // Maintain continuous beat phase across speed changes
+      // Maintain continuous beat phase across speed portals
       this.bgmStartTime = now - elapsedBeats * newQuarterDuration;
       this.nextNoteTime = Math.max(now, this.nextNoteTime);
     } else {
@@ -144,17 +156,9 @@ class SoundSystem {
     this.currentQuarterDuration = 60 / effectiveBpm;
   }
 
-  // Preview stub
-  public previewTrack(_url: string) {
-    this.stopPreview();
-  }
-
-  public stopPreview() {}
-
   // ==============================================================
-  // RHYTHM SYNCHRONIZATION API (Exposed for GameCanvas & Anthills)
+  // RHYTHM SYNCHRONIZATION API (For GameCanvas & Anthills)
   // ==============================================================
-  // Returns smooth 1.0 -> 0.0 exponential decay pulse that hits 1.0 EXACTLY on the quarter beat / kick drum
   public getBeatPulse(): number {
     if (!this.ctx || !this.isPlayingBgm) return 0;
     const now = this.ctx.currentTime;
@@ -164,7 +168,7 @@ class SoundSystem {
     const elapsed = now - this.bgmStartTime;
     const beatFraction = (elapsed / quarterDuration) % 1.0;
 
-    // Fast snappy attack on downbeat (fraction 0.0), exponential decay within the first 35% of the beat
+    // Fast snappy attack on downbeat (fraction 0.0), exponential decay
     if (beatFraction < 0.35) {
       const p = beatFraction / 0.35;
       return Math.pow(1 - p, 2.2);
@@ -172,7 +176,6 @@ class SoundSystem {
     return 0;
   }
 
-  // Returns continuous 0.0 -> 1.0 progress through current quarter note beat
   public getBeatProgress(): number {
     if (!this.ctx || !this.isPlayingBgm) return 0;
     const now = this.ctx.currentTime;
@@ -180,7 +183,6 @@ class SoundSystem {
     return ((now - this.bgmStartTime) / this.currentQuarterDuration) % 1.0;
   }
 
-  // Returns total integer quarter note beat counter
   public getBeatCounter(): number {
     if (!this.ctx || !this.isPlayingBgm) return 0;
     const now = this.ctx.currentTime;
@@ -188,26 +190,32 @@ class SoundSystem {
     return Math.floor((now - this.bgmStartTime) / this.currentQuarterDuration);
   }
 
-  // Returns current effective BPM
   public getEffectiveBpm(): number {
     return this.currentBpm * this.speedMultiplier;
   }
 
   // ==============================================================
-  // 1. IN-GAME LEVEL BGM (Punchy Electronic Rhythm Beats)
+  // 1. IN-GAME LEVEL BGM (23 Unique Evolving Compositions)
   // ==============================================================
-  public startLevelBgm(levelId: number = 1, bpm: number = 130, _songUrl?: string) {
+  public startLevelBgm(levelId: number = 1, customBpm?: number, _songUrl?: string) {
     this.init();
     this.stopMenuBgm();
+    this.stopPreview();
     this.stopBgm();
 
-    this.currentLevelId = levelId || 1;
-    this.currentBpm = bpm || 130;
+    // Map song ID strictly to valid range 1–23
+    let normalizedSongId = Math.floor(levelId);
+    if (normalizedSongId < 1 || normalizedSongId > 23) {
+      normalizedSongId = ((Math.abs(normalizedSongId) - 1) % 23) + 1;
+    }
+
+    const song = getSongById(normalizedSongId);
+    this.currentLevelId = normalizedSongId;
+    this.currentBpm = customBpm || song.bpm || 128;
     this.updateQuarterDuration();
     this.isPlayingBgm = true;
 
     if (this.ctx) {
-      // Clean start exactly 20ms in the future to avoid any render glitch
       this.bgmStartTime = this.ctx.currentTime + 0.02;
       this.nextNoteTime = this.bgmStartTime;
     }
@@ -223,14 +231,13 @@ class SoundSystem {
     }
   }
 
-  // Web Audio Lookahead Engine: runs every 25ms, schedules ahead by 120ms
-  // Zero drift, rock-solid sub-millisecond sync with the browser audio clock!
+  // Web Audio Lookahead Engine: 25ms interval, 120ms lookahead
   private runScheduler() {
     if (this.scheduleTimerId !== null) {
       window.clearInterval(this.scheduleTimerId);
     }
 
-    const scheduleAheadTime = 0.12; // 120ms lookahead window
+    const scheduleAheadTime = 0.12;
 
     this.scheduleTimerId = window.setInterval(() => {
       if (!this.isPlayingBgm || !this.ctx) return;
@@ -239,212 +246,474 @@ class SoundSystem {
       const sixteenthTime = (60 / effectiveBpm) / 4;
 
       while (this.nextNoteTime < this.ctx.currentTime + scheduleAheadTime) {
-        // Absolute step index derived from musical time from bgmStartTime
+        // 16-bar cyclical structure (256 sixteenth steps total)
+        // Bars 0-3: Intro/Groove
+        // Bars 4-7: Tension/Build
+        // Bars 8-11: Riser / Pre-Drop Roll
+        // Bars 12-15: CULMINATION / DROP / CLIMAX!
         const rawStep = Math.max(0, Math.round((this.nextNoteTime - this.bgmStartTime) / sixteenthTime));
-        const step = rawStep % 64; // 4-bar loop (16 steps per bar)
+        const step = rawStep % 256;
 
-        this.scheduleLevelStep(step, this.nextNoteTime, this.currentLevelId);
-
+        this.scheduleSongStep(step, this.nextNoteTime, this.currentLevelId);
         this.nextNoteTime += sixteenthTime;
       }
     }, 25);
   }
 
-  // Step Sequencer: 16 steps per bar, 4 bars total loop (64 steps)
-  private scheduleLevelStep(step: number, time: number, levelId: number) {
+  // Master Step Sequencer: 16-bar evolving structure per song
+  private scheduleSongStep(step: number, time: number, songId: number) {
     if (this.isMuted) return;
 
     const beatInBar = step % 16;
-    const bar = Math.floor(step / 16) % 4;
+    const bar = Math.floor(step / 16) % 16;
 
-    // 1. WARM ANALOG PAD / CHORD BED (On the downbeat of each bar)
-    if (beatInBar === 0) {
-      const chords = this.getBarChords(levelId, bar);
+    // Structural Form:
+    // 0: Intro / Verse (Bars 0-3)
+    // 1: Theme & Build (Bars 4-7)
+    // 2: Pre-Drop Riser (Bars 8-11)
+    // 3: CULMINATION / DROP (Bars 12-15)
+    const sectionIndex = Math.floor(bar / 4);
+    const isCulmination = sectionIndex === 3;
+    const isRiser = sectionIndex === 2;
+
+    // 1. CHORD HARMONY PADS (On bar downbeats)
+    if (beatInBar === 0 && sectionIndex !== 2) {
+      const chords = this.getSongChord(songId, bar);
       const barDuration = (60 / Math.max(60, this.currentBpm * this.speedMultiplier)) * 4;
-      this.playSynthPad(time, chords, barDuration * 0.95);
+      const padVol = isCulmination ? 0.12 : 0.08;
+      this.playSynthPad(time, chords, barDuration * 0.95, padVol);
     }
 
-    // 2. PUNCHY 909 KICK (On quarter beats 0, 4, 8, 12, plus rhythmic syncopations)
-    const isKick =
-      beatInBar === 0 ||
-      beatInBar === 4 ||
-      beatInBar === 8 ||
-      beatInBar === 12 ||
-      (levelId >= 7 && (beatInBar === 14 || (bar === 3 && beatInBar === 10)));
+    // 2. DRUMS & PERCUSSION
+    this.scheduleDrums(time, songId, bar, beatInBar, isCulmination, isRiser);
 
-    if (isKick) {
-      this.playSynthKick(time);
+    // 3. BASSLINE
+    if (beatInBar % 2 === 0 || (isCulmination && (beatInBar === 3 || beatInBar === 11))) {
+      const bassPitch = this.getSongBassPitch(songId, bar, beatInBar);
+      const isKickTime = beatInBar === 0 || beatInBar === 4 || beatInBar === 8 || beatInBar === 12;
+      this.playPumpingBass(time, bassPitch, isKickTime, isCulmination);
     }
 
-    // 3. CRISP ELECTRONIC SNARE / CLAP (Backbeats 4 and 12)
-    if (beatInBar === 4 || beatInBar === 12) {
-      this.playSynthSnare(time);
+    // 4. MELODIC LEAD HOOK
+    const leadPitch = this.getSongLeadPitch(songId, bar, beatInBar, isCulmination);
+    if (leadPitch > 0) {
+      const leadVol = isCulmination ? 0.16 : 0.12;
+      this.playSynthLead(time, leadPitch, leadVol, isCulmination);
+    }
+  }
+
+  // --- Drum Arrangement per Song & Section ---
+  private scheduleDrums(
+    time: number,
+    songId: number,
+    bar: number,
+    beat: number,
+    isCulmination: boolean,
+    isRiser: boolean
+  ) {
+    // 1. Kick Drum
+    let isKick = false;
+
+    // Specialized drum patterns
+    if (songId === 9) {
+      // Glitch hop / Half-time boom
+      isKick = beat === 0 || beat === 10 || (isCulmination && beat === 6);
+    } else if (songId === 13 || songId === 18) {
+      // Drum & Bass roller
+      isKick = beat === 0 || beat === 10 || (isCulmination && (beat === 2 || beat === 8));
+    } else if (songId === 8 || songId === 16) {
+      // Tech-trance / Psytrance driving gallop
+      isKick = beat === 0 || beat === 4 || beat === 8 || beat === 12;
+    } else {
+      // Standard punchy 4-on-the-floor
+      isKick = beat === 0 || beat === 4 || beat === 8 || beat === 12;
+      if (isCulmination && (beat === 14 || (bar % 2 === 1 && beat === 10))) {
+        isKick = true; // Syncopated kick accents in drop
+      }
     }
 
-    // 4. HI-HATS (16th-note rolling groove with offbeat open hats)
-    if (beatInBar % 2 === 0) {
-      const isOpen = beatInBar % 4 === 2;
-      this.playSynthHat(time, isOpen, isOpen ? 0.09 : 0.06);
-    } else if (levelId >= 5) {
-      // Driving 16th ghost hats
+    if (isKick && !isRiser) {
+      this.playSynthKick(time, isCulmination ? 0.75 : 0.65);
+    }
+
+    // 2. Snare / Clap
+    let isSnare = false;
+    if (songId === 9) {
+      // Glitch hop snare on 8
+      isSnare = beat === 8;
+    } else if (songId === 13 || songId === 18) {
+      // DnB snare on 4 and 12
+      isSnare = beat === 4 || beat === 12;
+    } else if (isRiser) {
+      // Snare roll build-up: 8th notes, then 16th notes in bar 11!
+      if (bar === 11) isSnare = true;
+      else isSnare = beat % 2 === 0;
+    } else {
+      isSnare = beat === 4 || beat === 12;
+    }
+
+    if (isSnare) {
+      const snareVol = isRiser ? 0.2 + (beat / 16) * 0.25 : isCulmination ? 0.45 : 0.38;
+      this.playSynthSnare(time, snareVol);
+    }
+
+    // 3. Hi-Hats
+    if (beat % 2 === 0) {
+      const isOpen = beat % 4 === 2;
+      this.playSynthHat(time, isOpen, isOpen ? 0.08 : 0.05);
+    } else if (isCulmination || songId >= 13) {
+      // 16th driving ghost hats
       this.playSynthHat(time, false, 0.03);
     }
+  }
 
-    // 5. PUMPING SIDECHAINED SYNTH BASS (Sawtooth + Sub-Sine ducked on the kick)
-    if (beatInBar % 2 === 0 || beatInBar === 3 || beatInBar === 11) {
-      const bassFreq = this.getBassPitch(levelId, bar, beatInBar);
-      this.playPumpingBass(time, bassFreq, isKick);
-    }
+  // --- 23 Unique Harmonic Chord Voicings ---
+  private getSongChord(songId: number, bar: number): number[] {
+    const barMod = bar % 4;
 
-    // 6. CATCHY ELECTRONIC HOOK LEAD (Syncopated, musical, harmonized)
-    const melodyNote = this.getHookMelodyPitch(levelId, bar, beatInBar);
-    if (melodyNote > 0) {
-      this.playSynthLead(time, melodyNote);
+    switch (songId) {
+      case 1: // First Steps (C Major: C - G - Am - F)
+        return [
+          [261.63, 329.63, 392.0, 523.25], // C
+          [196.0, 246.94, 293.66, 392.0],  // G
+          [220.0, 261.63, 329.63, 440.0],  // Am
+          [174.61, 220.0, 261.63, 349.23], // F
+        ][barMod];
+
+      case 2: // Sunny Meadow (G Major: G - D - Em - C)
+        return [
+          [196.0, 246.94, 293.66, 392.0],  // G
+          [146.83, 220.0, 293.66, 369.99], // D
+          [164.81, 196.0, 246.94, 329.63], // Em
+          [130.81, 164.81, 196.0, 261.63], // C
+        ][barMod];
+
+      case 3: // Pheromone Groove (D Minor: Dm7 - Gm7 - C7 - Fmaj7)
+        return [
+          [146.83, 220.0, 261.63, 349.23], // Dm7
+          [196.0, 233.08, 293.66, 349.23], // Gm7
+          [130.81, 196.0, 233.08, 261.63], // C7
+          [174.61, 220.0, 261.63, 329.63], // Fmaj7
+        ][barMod];
+
+      case 4: // Cobblestone Run (A Minor: Am - Em - F - G)
+        return [
+          [220.0, 261.63, 329.63, 440.0],
+          [164.81, 196.0, 246.94, 329.63],
+          [174.61, 220.0, 261.63, 349.23],
+          [196.0, 246.94, 293.66, 392.0],
+        ][barMod];
+
+      case 5: // High Noon Highway (F Major: F - C - Dm - Bb)
+        return [
+          [174.61, 220.0, 261.63, 349.23],
+          [261.63, 329.63, 392.0, 523.25],
+          [146.83, 220.0, 261.63, 349.23],
+          [233.08, 293.66, 349.23, 466.16],
+        ][barMod];
+
+      case 6: // Neon Horizon (E Minor: Em - C - Am - D)
+        return [
+          [164.81, 246.94, 329.63, 392.0],
+          [130.81, 261.63, 329.63, 392.0],
+          [220.0, 261.63, 329.63, 440.0],
+          [146.83, 220.0, 293.66, 369.99],
+        ][barMod];
+
+      case 7: // Subterranean Velocity (B Minor: Bm - G - A - F#m)
+        return [
+          [123.47, 184.99, 246.94, 293.66],
+          [196.0, 246.94, 293.66, 392.0],
+          [220.0, 277.18, 329.63, 440.0],
+          [184.99, 220.0, 277.18, 369.99],
+        ][barMod];
+
+      case 8: // Desert Sandstorm (C Minor: Cm - Ab - Fm - G)
+        return [
+          [130.81, 196.0, 261.63, 311.13],
+          [207.65, 261.63, 311.13, 415.3],
+          [174.61, 207.65, 261.63, 349.23],
+          [196.0, 246.94, 293.66, 392.0],
+        ][barMod];
+
+      case 9: // Electric Zenith (D Minor: Dm - Bb - C - A)
+        return [
+          [146.83, 220.0, 293.66, 349.23],
+          [116.54, 233.08, 293.66, 349.23],
+          [130.81, 196.0, 261.63, 329.63],
+          [220.0, 277.18, 329.63, 440.0],
+        ][barMod];
+
+      case 10: // Crystal Reflections (F# Minor: F#m - D - A - E)
+        return [
+          [184.99, 277.18, 369.99, 440.0],
+          [146.83, 293.66, 369.99, 440.0],
+          [220.0, 277.18, 329.63, 440.0],
+          [164.81, 246.94, 329.63, 392.0],
+        ][barMod];
+
+      case 11: // Deep Core (G Minor: Gm - Eb - Bb - F)
+        return [
+          [196.0, 233.08, 293.66, 392.0],
+          [155.56, 233.08, 311.13, 392.0],
+          [233.08, 293.66, 349.23, 466.16],
+          [174.61, 220.0, 261.63, 349.23],
+        ][barMod];
+
+      case 12: // Chitin Steel (A Dorian: Am - D - F - G)
+        return [
+          [220.0, 261.63, 329.63, 440.0],
+          [146.83, 220.0, 293.66, 369.99],
+          [174.61, 220.0, 261.63, 349.23],
+          [196.0, 246.94, 293.66, 392.0],
+        ][barMod];
+
+      case 13: // Against the Odds (E Minor DnB: Em - G - D - C)
+        return [
+          [164.81, 246.94, 329.63, 392.0],
+          [196.0, 246.94, 293.66, 392.0],
+          [146.83, 220.0, 293.66, 369.99],
+          [130.81, 261.63, 329.63, 392.0],
+        ][barMod];
+
+      case 14: // Thermal Surge (C# Minor: C#m - A - E - B)
+        return [
+          [138.59, 207.65, 277.18, 329.63],
+          [220.0, 277.18, 329.63, 440.0],
+          [164.81, 246.94, 329.63, 392.0],
+          [246.94, 293.66, 369.99, 493.88],
+        ][barMod];
+
+      case 15: // Emergency Protocol (F Minor: Fm - Db - Ab - Eb)
+        return [
+          [174.61, 207.65, 261.63, 349.23],
+          [138.59, 207.65, 277.18, 349.23],
+          [207.65, 261.63, 311.13, 415.3],
+          [155.56, 233.08, 311.13, 392.0],
+        ][barMod];
+
+      case 16: // Acid Rain (D Phrygian: Dm - Eb - Cm - Dm)
+        return [
+          [146.83, 220.0, 293.66, 349.23],
+          [155.56, 233.08, 311.13, 392.0],
+          [130.81, 196.0, 261.63, 311.13],
+          [146.83, 220.0, 293.66, 349.23],
+        ][barMod];
+
+      case 17: // Starlight Beacon (Bb Major: Bb - F - Gm - Eb)
+        return [
+          [233.08, 293.66, 349.23, 466.16],
+          [174.61, 220.0, 261.63, 349.23],
+          [196.0, 233.08, 293.66, 392.0],
+          [155.56, 233.08, 311.13, 392.0],
+        ][barMod];
+
+      case 18: // Synaptic Voltage (F# Minor Neuro: F#m - E - D - C#)
+        return [
+          [184.99, 277.18, 369.99, 440.0],
+          [164.81, 246.94, 329.63, 392.0],
+          [146.83, 293.66, 369.99, 440.0],
+          [138.59, 207.65, 277.18, 329.63],
+        ][barMod];
+
+      case 19: // Chrono Distortion (G# Minor: G#m - E - B - F#)
+        return [
+          [207.65, 246.94, 311.13, 415.3],
+          [164.81, 246.94, 329.63, 392.0],
+          [246.94, 293.66, 369.99, 493.88],
+          [184.99, 277.18, 369.99, 440.0],
+        ][barMod];
+
+      case 20: // Genesis Protocol (C Minor Cyberpunk: Cm - Ab - Eb - Bb)
+        return [
+          [130.81, 196.0, 261.63, 311.13],
+          [207.65, 261.63, 311.13, 415.3],
+          [155.56, 233.08, 311.13, 392.0],
+          [116.54, 233.08, 293.66, 349.23],
+        ][barMod];
+
+      case 21: // Colony Extinction (E Minor Speedcore: Em - C - G - D)
+        return [
+          [164.81, 246.94, 329.63, 392.0],
+          [130.81, 261.63, 329.63, 392.0],
+          [196.0, 246.94, 293.66, 392.0],
+          [146.83, 220.0, 293.66, 369.99],
+        ][barMod];
+
+      case 22: // Singularity Gate (B Minor Rave: Bm - G - D - A)
+        return [
+          [123.47, 184.99, 246.94, 293.66],
+          [196.0, 246.94, 293.66, 392.0],
+          [146.83, 220.0, 293.66, 369.99],
+          [220.0, 277.18, 329.63, 440.0],
+        ][barMod];
+
+      case 23: // Final Stand of the Farm (D Minor Boss: Dm - Bb - F - C)
+      default:
+        return [
+          [146.83, 220.0, 293.66, 349.23],
+          [116.54, 233.08, 293.66, 349.23],
+          [174.61, 220.0, 261.63, 349.23],
+          [130.81, 196.0, 261.63, 329.63],
+        ][barMod];
     }
   }
 
-  // --- Harmonically Rich Chord Progressions per Difficulty/Theme ---
-  private getBarChords(levelId: number, bar: number): number[] {
-    if (levelId <= 4) {
-      // Uplifting Synthwave in A Minor (Am9 -> Fmaj7 -> Cmaj7 -> Gsus4)
-      const progression = [
-        [220.0, 261.63, 329.63, 493.88], // A3, C4, E4, B4 (Am9)
-        [174.61, 261.63, 329.63, 349.23], // F3, C4, E4, F4 (Fmaj7)
-        [261.63, 329.63, 392.0, 493.88],  // C4, E4, G4, B4 (Cmaj7)
-        [196.0, 261.63, 293.66, 392.0],   // G3, C4, D4, G4 (Gsus4)
-      ];
-      return progression[bar % 4];
-    } else if (levelId <= 8) {
-      // French House / Electro in D Minor (Dm9 -> Bbmaj7 -> Gm7 -> A7)
-      const progression = [
-        [146.83, 220.0, 261.63, 329.63], // D3, A3, C4, E4 (Dm9)
-        [116.54, 233.08, 293.66, 349.23], // Bb2, Bb3, D4, F4 (Bbmaj7)
-        [196.0, 233.08, 293.66, 349.23],  // G3, Bb3, D4, F4 (Gm7)
-        [220.0, 277.18, 329.63, 392.0],   // A3, C#4, E4, G4 (A7)
-      ];
-      return progression[bar % 4];
-    } else if (levelId <= 12) {
-      // Cyberpunk Darkwave in E Minor (Em9 -> Cmaj7 -> G -> Bm7)
-      const progression = [
-        [164.81, 246.94, 329.63, 392.0],  // E3, B3, E4, G4 (Em)
-        [130.81, 261.63, 329.63, 392.0],  // C3, C4, E4, G4 (Cmaj7)
-        [196.0, 246.94, 293.66, 392.0],   // G3, B3, D4, G4 (G)
-        [246.94, 293.66, 369.99, 440.0],  // B3, D4, F#4, A4 (Bm7)
-      ];
-      return progression[bar % 4];
-    } else if (levelId <= 16) {
-      // Fast Melodic Trance in F# Minor (F#m7 -> Dmaj7 -> A -> E)
-      const progression = [
-        [184.99, 277.18, 369.99, 440.0],  // F#3, C#4, F#4, A4
-        [146.83, 293.66, 369.99, 440.0],  // D3, D4, F#4, A4
-        [220.0, 277.18, 329.63, 440.0],   // A3, C#4, E4, A4
-        [164.81, 246.94, 329.63, 392.0],  // E3, B3, E4, G#4
-      ];
-      return progression[bar % 4];
-    } else if (levelId <= 20) {
-      // High-Energy Electro in C Minor (Cm9 -> Abmaj7 -> Eb -> Bb)
-      const progression = [
-        [130.81, 196.0, 261.63, 311.13],  // C3, G3, C4, Eb4
-        [207.65, 261.63, 311.13, 392.0],  // Ab3, C4, Eb4, G4
-        [155.56, 233.08, 311.13, 392.0],  // Eb3, Bb3, Eb4, G4
-        [116.54, 233.08, 293.66, 349.23], // Bb2, Bb3, D4, F4
-      ];
-      return progression[bar % 4];
-    } else {
-      // Overdrive Hyper Beat in B Minor (Bm -> G -> D -> A)
-      const progression = [
-        [123.47, 184.99, 246.94, 293.66], // B2, F#3, B3, D4
-        [196.0, 246.94, 293.66, 369.99],  // G3, B3, D4, F#4
-        [146.83, 220.0, 293.66, 369.99],  // D3, A3, D4, F#4
-        [220.0, 277.18, 329.63, 440.0],   // A3, C#4, E4, A4
-      ];
-      return progression[bar % 4];
-    }
-  }
-
-  // --- Bass Pitches ---
-  private getBassPitch(levelId: number, bar: number, beat: number): number {
+  // --- 23 Unique Bass Pitches ---
+  private getSongBassPitch(songId: number, bar: number, beat: number): number {
     const isUpbeat = beat === 2 || beat === 6 || beat === 10 || beat === 14;
+    const barMod = bar % 4;
 
-    if (levelId <= 4) {
-      const roots = [55.0, 43.65, 65.41, 49.0]; // A1, F1, C2, G1
-      return roots[bar % 4] * (isUpbeat ? 2.0 : 1.0);
-    } else if (levelId <= 8) {
-      const roots = [73.42, 58.27, 49.0, 55.0]; // D2, Bb1, G1, A1
-      return roots[bar % 4] * (isUpbeat ? 1.5 : 1.0);
-    } else if (levelId <= 12) {
-      const roots = [41.2, 32.7, 49.0, 61.74]; // E1, C1, G1, B1
-      return roots[bar % 4] * (isUpbeat ? 2.0 : 1.0);
-    } else if (levelId <= 16) {
-      const roots = [46.25, 36.71, 55.0, 41.2]; // F#1, D1, A1, E1
-      return roots[bar % 4] * (isUpbeat ? 2.0 : 1.0);
-    } else if (levelId <= 20) {
-      const roots = [32.7, 51.91, 38.89, 43.65]; // C1, Ab1, Eb1, Bb1
-      return roots[bar % 4] * (isUpbeat ? 2.0 : 1.0);
-    } else {
-      const roots = [30.87, 49.0, 36.71, 55.0]; // B0, G1, D1, A1
-      return roots[bar % 4] * (isUpbeat ? 2.0 : 1.0);
-    }
-  }
-
-  // --- Catchy Melodic Hooks (Harmonized with Chord Progression) ---
-  private getHookMelodyPitch(levelId: number, bar: number, beat: number): number {
-    // Syncopated rhythm game lead pattern
-    const activePattern: Record<number, number> = {
-      0: 0,
-      2: 1,
-      4: 2,
-      7: 3,
-      8: 4,
-      10: 3,
-      12: 5,
-      14: 6,
+    // Roots for each song's 4-bar progression
+    const rootsTable: Record<number, number[]> = {
+      1: [65.41, 49.0, 55.0, 43.65],    // C, G, A, F
+      2: [49.0, 36.71, 41.2, 32.7],     // G, D, E, C
+      3: [36.71, 49.0, 32.7, 43.65],    // D, G, C, F
+      4: [55.0, 41.2, 43.65, 49.0],     // A, E, F, G
+      5: [43.65, 32.7, 36.71, 58.27],   // F, C, D, Bb
+      6: [41.2, 32.7, 55.0, 36.71],     // E, C, A, D
+      7: [61.74, 49.0, 55.0, 46.25],    // B, G, A, F#
+      8: [32.7, 51.91, 43.65, 49.0],    // C, Ab, F, G
+      9: [36.71, 58.27, 32.7, 55.0],    // D, Bb, C, A
+      10: [46.25, 36.71, 55.0, 41.2],   // F#, D, A, E
+      11: [49.0, 38.89, 58.27, 43.65],  // G, Eb, Bb, F
+      12: [55.0, 36.71, 43.65, 49.0],   // A, D, F, G
+      13: [41.2, 49.0, 36.71, 32.7],    // E, G, D, C
+      14: [34.65, 55.0, 41.2, 61.74],   // C#, A, E, B
+      15: [43.65, 34.65, 51.91, 38.89], // F, Db, Ab, Eb
+      16: [36.71, 38.89, 32.7, 36.71],  // D, Eb, C, D
+      17: [58.27, 43.65, 49.0, 38.89],  // Bb, F, G, Eb
+      18: [46.25, 41.2, 36.71, 34.65],  // F#, E, D, C#
+      19: [51.91, 41.2, 61.74, 46.25],  // G#, E, B, F#
+      20: [32.7, 51.91, 38.89, 58.27],  // C, Ab, Eb, Bb
+      21: [41.2, 32.7, 49.0, 36.71],    // E, C, G, D
+      22: [61.74, 49.0, 36.71, 55.0],   // B, G, D, A
+      23: [36.71, 58.27, 43.65, 32.7],  // D, Bb, F, C
     };
 
-    if (activePattern[beat] === undefined) return 0;
-    const noteIdx = activePattern[beat];
+    const roots = rootsTable[songId] || [55.0, 43.65, 65.41, 49.0];
+    const root = roots[barMod];
+    return root * (isUpbeat ? 2.0 : 1.0);
+  }
 
-    if (levelId <= 4) {
-      // A Minor Melody Riff
-      const scales: number[][] = [
-        [440.0, 523.25, 659.25, 587.33, 659.25, 783.99, 880.0], // Over Am
-        [349.23, 440.0, 523.25, 587.33, 659.25, 698.46, 880.0], // Over F
-        [523.25, 587.33, 659.25, 783.99, 880.0, 987.77, 1046.5], // Over C
-        [392.0, 440.0, 493.88, 587.33, 659.25, 783.99, 880.0],  // Over G
-      ];
-      return scales[bar % 4][noteIdx % 7];
-    } else if (levelId <= 8) {
-      // D Minor French House Riff
-      const scales: number[][] = [
-        [587.33, 659.25, 698.46, 783.99, 880.0, 1046.5, 1174.66],
-        [466.16, 587.33, 698.46, 783.99, 880.0, 932.33, 1046.5],
-        [392.0, 466.16, 587.33, 698.46, 783.99, 880.0, 932.33],
-        [440.0, 554.37, 659.25, 783.99, 880.0, 987.77, 1046.5],
-      ];
-      return scales[bar % 4][noteIdx % 7];
-    } else if (levelId <= 12) {
-      // E Minor Cyberpunk Arp
-      const scales: number[][] = [
-        [659.25, 783.99, 880.0, 987.77, 1046.5, 1174.66, 1318.51],
-        [523.25, 659.25, 783.99, 880.0, 987.77, 1046.5, 1174.66],
-        [392.0, 493.88, 587.33, 659.25, 783.99, 880.0, 987.77],
-        [493.88, 587.33, 739.99, 880.0, 987.77, 1108.73, 1174.66],
-      ];
-      return scales[bar % 4][noteIdx % 7];
-    } else {
-      // High-octane Fast Lead
-      const scale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51];
-      return scale[noteIdx % 7] * (bar % 2 === 1 ? 1.25 : 1.0);
-    }
+  // --- 23 Unique Melodic Lead Hooks (Harmonized per Song) ---
+  private getSongLeadPitch(songId: number, bar: number, beat: number, isCulmination: boolean): number {
+    const barMod = bar % 4;
+
+    // Rhythmic pattern: syncopated groove in verse, high-density arps in culmination
+    const regularSteps: Record<number, number> = {
+      0: 0,
+      3: 1,
+      6: 2,
+      8: 3,
+      11: 4,
+      14: 5,
+    };
+
+    const culminationSteps: Record<number, number> = {
+      0: 0,
+      1: 1,
+      2: 2,
+      4: 3,
+      6: 4,
+      7: 3,
+      8: 5,
+      10: 6,
+      12: 5,
+      14: 7,
+    };
+
+    const pattern = isCulmination ? culminationSteps : regularSteps;
+    if (pattern[beat] === undefined) return 0;
+    const noteIdx = pattern[beat];
+
+    // Scales mapped to song keys
+    const baseFreqs: Record<number, number[]> = {
+      1: [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5], // C Major
+      2: [392.0, 440.0, 493.88, 523.25, 587.33, 659.25, 739.99, 783.99],   // G Major
+      3: [587.33, 659.25, 698.46, 783.99, 880.0, 932.33, 1046.5, 1174.66], // D Minor
+      4: [440.0, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99, 880.0],   // A Minor
+      5: [349.23, 392.0, 440.0, 466.16, 523.25, 587.33, 659.25, 698.46],   // F Major
+      6: [659.25, 739.99, 783.99, 880.0, 987.77, 1046.5, 1174.66, 1318.51], // E Minor
+      7: [493.88, 554.37, 587.33, 659.25, 739.99, 783.99, 880.0, 987.77], // B Minor
+      8: [523.25, 587.33, 622.25, 698.46, 783.99, 830.61, 932.33, 1046.5], // C Minor
+      9: [587.33, 698.46, 783.99, 880.0, 1046.5, 1174.66, 1318.51, 1396.91], // D Minor Glitch
+      10: [739.99, 830.61, 880.0, 987.77, 1108.73, 1174.66, 1318.51, 1479.98], // F# Minor Future
+      11: [392.0, 440.0, 466.16, 523.25, 587.33, 622.25, 698.46, 783.99],   // G Minor Darkwave
+      12: [440.0, 493.88, 523.25, 587.33, 659.25, 739.99, 783.99, 880.0],   // A Dorian
+      13: [659.25, 783.99, 880.0, 987.77, 1046.5, 1174.66, 1318.51, 1567.98], // E Minor DnB
+      14: [554.37, 622.25, 659.25, 739.99, 830.61, 880.0, 987.77, 1108.73], // C# Minor Dark
+      15: [698.46, 783.99, 830.61, 932.33, 1046.5, 1108.73, 1244.51, 1396.91], // F Minor Hard
+      16: [587.33, 622.25, 698.46, 783.99, 880.0, 932.33, 1046.5, 1174.66], // D Phrygian Psy
+      17: [466.16, 523.25, 587.33, 622.25, 698.46, 783.99, 880.0, 932.33], // Bb Major Rave
+      18: [739.99, 830.61, 880.0, 987.77, 1108.73, 1174.66, 1318.51, 1479.98], // F# Minor Neuro
+      19: [830.61, 932.33, 987.77, 1108.73, 1244.51, 1318.51, 1479.98, 1661.22], // G# Minor Glitch
+      20: [523.25, 587.33, 622.25, 698.46, 783.99, 830.61, 932.33, 1046.5], // C Minor Symphonic
+      21: [659.25, 783.99, 880.0, 987.77, 1046.5, 1174.66, 1318.51, 1567.98], // E Minor Speed
+      22: [493.88, 587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51], // B Minor 8-bit
+      23: [587.33, 698.46, 783.99, 880.0, 1046.5, 1174.66, 1396.91, 1567.98], // D Minor Boss Climax
+    };
+
+    const scale = baseFreqs[songId] || baseFreqs[23];
+    const pitch = scale[noteIdx % scale.length];
+    return pitch * (barMod === 3 ? 1.12 : 1.0);
   }
 
   // ==============================================================
-  // 2. STYLISH MENU BGM (Cozy Chill Electro-Groove)
+  // 2. LEVEL EDITOR PREVIEW MODE
+  // ==============================================================
+  public previewTrack(songId: number) {
+    this.init();
+    if (this.isPreviewPlaying && this.previewingSongId === songId) {
+      this.stopPreview();
+      return;
+    }
+
+    this.stopPreview();
+    this.stopBgm();
+    this.stopMenuBgm();
+
+    this.previewingSongId = songId;
+    this.isPreviewPlaying = true;
+    const song = getSongById(songId);
+
+    // Start preview directly at the start of the culmination drop for instant gratification!
+    this.currentLevelId = songId;
+    this.currentBpm = song.bpm;
+    this.updateQuarterDuration();
+    this.isPlayingBgm = true;
+
+    if (this.ctx) {
+      this.bgmStartTime = this.ctx.currentTime + 0.02;
+      this.nextNoteTime = this.bgmStartTime;
+    }
+
+    this.runScheduler();
+  }
+
+  public stopPreview() {
+    this.previewingSongId = null;
+    this.isPreviewPlaying = false;
+    this.stopBgm();
+  }
+
+  public isTrackPreviewing(songId?: number): boolean {
+    if (songId === undefined) return this.isPreviewPlaying;
+    return this.isPreviewPlaying && this.previewingSongId === songId;
+  }
+
+  public getPreviewingSongId(): number | null {
+    return this.previewingSongId;
+  }
+
+  // ==============================================================
+  // 3. ULTRA-CALM, QUIET MENU BGM (Peaceful Ambient Lounge)
   // ==============================================================
   public startMenuBgm() {
     this.init();
     if (this.isPlayingMenuBgm) return;
     this.stopBgm();
+    this.stopPreview();
 
     this.isPlayingMenuBgm = true;
 
@@ -457,7 +726,7 @@ class SoundSystem {
       window.clearInterval(this.menuTimerId);
     }
 
-    const menuBpm = 108;
+    const menuBpm = 96; // Calm, unhurried tempo
     const sixteenthTime = (60 / menuBpm) / 4;
 
     this.menuTimerId = window.setInterval(() => {
@@ -467,10 +736,10 @@ class SoundSystem {
         const rawStep = Math.max(0, Math.round((this.nextMenuNoteTime - this.menuStartTime) / sixteenthTime));
         const step = rawStep % 64;
 
-        this.scheduleMenuStep(step, this.nextMenuNoteTime);
+        this.scheduleCalmMenuStep(step, this.nextMenuNoteTime);
         this.nextMenuNoteTime += sixteenthTime;
       }
-    }, 25);
+    }, 30);
   }
 
   public stopMenuBgm() {
@@ -481,64 +750,50 @@ class SoundSystem {
     }
   }
 
-  private scheduleMenuStep(step: number, time: number) {
+  // Ultra-quiet, calm, gentle ambient chords & chimes (Zero aggressive kicks/drums)
+  private scheduleCalmMenuStep(step: number, time: number) {
     if (this.isMuted) return;
 
     const beat = step % 16;
     const bar = Math.floor(step / 16) % 4;
 
-    // Cozy warm pad chords on each measure downbeat (Fmaj7 -> Em7 -> Dm7 -> Cmaj7)
+    // Soft warm electric piano pad chords on measure downbeats (Fmaj9 -> Em7 -> Dm9 -> Cmaj7)
     if (beat === 0) {
-      const menuChords = [
-        [174.61, 220.0, 261.63, 329.63], // Fmaj7
-        [164.81, 196.0, 246.94, 293.66], // Em7
-        [146.83, 174.61, 220.0, 261.63], // Dm7
-        [130.81, 164.81, 196.0, 246.94], // Cmaj7
+      const calmChords = [
+        [174.61, 261.63, 329.63, 392.0], // Fmaj9
+        [164.81, 246.94, 293.66, 392.0], // Em7
+        [146.83, 220.0, 261.63, 329.63], // Dm9
+        [130.81, 196.0, 246.94, 329.63], // Cmaj7
       ];
-      this.playSynthPad(time, menuChords[bar], 2.2, 0.08);
+      this.playCalmMenuPad(time, calmChords[bar], 2.4);
     }
 
-    // Soft cozy kick on 0, 8, and syncopated 14
-    if (beat === 0 || beat === 8 || (bar === 3 && beat === 14)) {
-      this.playSynthKick(time, 0.45);
-    }
-
-    // Soft rim click on 4 and 12
-    if (beat === 4 || beat === 12) {
-      this.playSynthSnare(time, 0.22);
-    }
-
-    // Shuffling hi-hats on 8ths
-    if (beat % 2 === 0) {
-      this.playSynthHat(time, beat % 4 === 2, 0.04);
-    }
-
-    // Warm bassline
-    if (beat === 0 || beat === 6 || beat === 8 || beat === 14) {
-      const bassNotes = [87.31, 82.41, 73.42, 65.41]; // F, E, D, C
-      this.playPumpingBass(time, bassNotes[bar], beat === 0 || beat === 8);
-    }
-
-    // Dreamy melodic chime stabs
+    // Ethereal music box chime plucks on gentle syncopated beats
     if (beat === 3 || beat === 7 || beat === 11 || beat === 14) {
-      const melodyNotes = [
-        [440.0, 523.25], // A4, C5
-        [392.0, 493.88], // G4, B4
-        [349.23, 440.0], // F4, A4
-        [329.63, 392.0], // E4, G4
+      const chimeChords = [
+        [440.0, 659.25], // A4, E5
+        [392.0, 587.33], // G4, D5
+        [349.23, 523.25], // F4, C5
+        [329.63, 493.88], // E4, B4
       ];
-      melodyNotes[bar].forEach((freq) => {
-        this.playSynthLead(time, freq, 0.07);
+      chimeChords[bar].forEach((freq) => {
+        this.playCalmChime(time, freq);
       });
+    }
+
+    // Subtle gentle warm sub-pulse (soothing and low, no sharp click)
+    if (beat === 0 || beat === 8) {
+      const subNotes = [87.31, 82.41, 73.42, 65.41];
+      this.playCalmSubBass(time, subNotes[bar]);
     }
   }
 
   // ==============================================================
-  // SYNTHESIZER VOICES (Punchy, Analog & Dynamic)
+  // SYNTHESIZER VOICES (Punchy Level Instruments & Calm Menu Tones)
   // ==============================================================
 
   // 1. WARM ANALOG PAD SYNTH
-  private playSynthPad(time: number, chordFreqs: number[], duration: number, volume: number = 0.09) {
+  private playSynthPad(time: number, chordFreqs: number[], duration: number, volume: number = 0.08) {
     if (!this.ctx || !this.bgmGain) return;
 
     chordFreqs.forEach((freq) => {
@@ -551,14 +806,13 @@ class SoundSystem {
       osc.frequency.setValueAtTime(freq, time);
 
       osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(freq * 1.003, time); // warm chorus detune
+      osc2.frequency.setValueAtTime(freq * 1.003, time);
 
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(950, time);
       filter.frequency.exponentialRampToValueAtTime(1400, time + duration * 0.4);
       filter.frequency.exponentialRampToValueAtTime(800, time + duration);
 
-      // Gentle attack and slow fade
       gain.gain.setValueAtTime(0.001, time);
       gain.gain.linearRampToValueAtTime(volume, time + 0.15);
       gain.gain.setValueAtTime(volume, time + duration * 0.7);
@@ -576,7 +830,7 @@ class SoundSystem {
     });
   }
 
-  // 2. PUNCHY 909-STYLE KICK DRUM
+  // 2. PUNCHY 909 KICK
   private playSynthKick(time: number, volume: number = 0.68) {
     if (!this.ctx || !this.bgmGain) return;
 
@@ -584,12 +838,10 @@ class SoundSystem {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    // Pitch envelope: drops rapidly from 185Hz down to 48Hz (punchy chest thump)
     osc.frequency.setValueAtTime(185, time);
     osc.frequency.exponentialRampToValueAtTime(48, time + 0.07);
     osc.frequency.exponentialRampToValueAtTime(32, time + 0.22);
 
-    // Amplitude envelope: instant punchy attack, tight decay
     gain.gain.setValueAtTime(volume, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.24);
 
@@ -600,11 +852,10 @@ class SoundSystem {
     osc.stop(time + 0.25);
   }
 
-  // 3. CRISP ELECTRONIC SNARE / CLAP
-  private playSynthSnare(time: number, volume: number = 0.42) {
+  // 3. CRISP ELECTRONIC SNARE
+  private playSynthSnare(time: number, volume: number = 0.40) {
     if (!this.ctx || !this.bgmGain) return;
 
-    // Noise layer for crisp snap
     const bufferSize = Math.floor(this.ctx.sampleRate * 0.1);
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -628,7 +879,6 @@ class SoundSystem {
     filter.connect(noiseGain);
     noiseGain.connect(this.bgmGain);
 
-    // Tonal body layer for punch
     const osc = this.ctx.createOscillator();
     const oscGain = this.ctx.createGain();
     osc.type = 'triangle';
@@ -647,7 +897,7 @@ class SoundSystem {
     osc.stop(time + 0.1);
   }
 
-  // 4. CLOSED & OPEN HI-HATS
+  // 4. HI-HATS
   private playSynthHat(time: number, isOpen: boolean = false, volume: number = 0.06) {
     if (!this.ctx || !this.bgmGain) return;
 
@@ -678,8 +928,8 @@ class SoundSystem {
     noise.stop(time + dur + 0.01);
   }
 
-  // 5. PUMPING SIDECHAIN SYNTH BASS (Sawtooth + Sub-Octave + Resonant Lowpass)
-  private playPumpingBass(time: number, freq: number, sidechainDuck: boolean = false) {
+  // 5. SIDECHAIN PUMPING SYNTH BASS
+  private playPumpingBass(time: number, freq: number, sidechainDuck: boolean = false, isCulmination: boolean = false) {
     if (!this.ctx || !this.bgmGain) return;
 
     const osc = this.ctx.createOscillator();
@@ -693,16 +943,14 @@ class SoundSystem {
     subOsc.type = 'square';
     subOsc.frequency.setValueAtTime(freq * 0.5, time);
 
-    // Resonant lowpass filter
     filter.type = 'lowpass';
-    filter.Q.setValueAtTime(3.2, time);
-    filter.frequency.setValueAtTime(sidechainDuck ? 350 : 920, time);
-    filter.frequency.exponentialRampToValueAtTime(220, time + 0.18);
+    filter.Q.setValueAtTime(isCulmination ? 4.2 : 3.0, time);
+    filter.frequency.setValueAtTime(sidechainDuck ? 350 : (isCulmination ? 1100 : 900), time);
+    filter.frequency.exponentialRampToValueAtTime(200, time + 0.18);
 
-    // Sidechain pumping: ducks down on kick drum, creating bouncy rhythm game feel
-    const baseVol = 0.28;
+    const baseVol = isCulmination ? 0.32 : 0.26;
     if (sidechainDuck) {
-      gain.gain.setValueAtTime(baseVol * 0.35, time);
+      gain.gain.setValueAtTime(baseVol * 0.32, time);
       gain.gain.linearRampToValueAtTime(baseVol, time + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
     } else {
@@ -721,8 +969,8 @@ class SoundSystem {
     subOsc.stop(time + 0.24);
   }
 
-  // 6. CATCHY ELECTRONIC LEAD (Dual Saw/Square with Tape Delay Send)
-  private playSynthLead(time: number, freq: number, volume: number = 0.13) {
+  // 6. CATCHY ELECTRONIC LEAD HOOK
+  private playSynthLead(time: number, freq: number, volume: number = 0.13, isCulmination: boolean = false) {
     if (!this.ctx || !this.bgmGain) return;
 
     const osc = this.ctx.createOscillator();
@@ -734,14 +982,14 @@ class SoundSystem {
     osc.frequency.setValueAtTime(freq, time);
 
     osc2.type = 'square';
-    osc2.frequency.setValueAtTime(freq * 1.004, time); // slight chorus detune
+    osc2.frequency.setValueAtTime(freq * 1.004, time);
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2800, time);
-    filter.frequency.exponentialRampToValueAtTime(900, time + 0.16);
+    filter.frequency.setValueAtTime(isCulmination ? 3400 : 2600, time);
+    filter.frequency.exponentialRampToValueAtTime(800, time + 0.18);
 
     gain.gain.setValueAtTime(volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + (isCulmination ? 0.22 : 0.18));
 
     osc.connect(filter);
     osc2.connect(filter);
@@ -749,13 +997,83 @@ class SoundSystem {
 
     gain.connect(this.bgmGain);
     if (this.delayNode) {
-      gain.connect(this.delayNode); // routed into echo delay
+      gain.connect(this.delayNode);
     }
 
     osc.start(time);
     osc2.start(time);
-    osc.stop(time + 0.2);
-    osc2.stop(time + 0.2);
+    osc.stop(time + 0.24);
+    osc2.stop(time + 0.24);
+  }
+
+  // 7. CALM MENU VOICES (Super gentle, relaxing)
+  private playCalmMenuPad(time: number, chordFreqs: number[], duration: number) {
+    if (!this.ctx || !this.menuGain) return;
+
+    chordFreqs.forEach((freq) => {
+      const osc = this.ctx!.createOscillator();
+      const filter = this.ctx!.createBiquadFilter();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'sine'; // pure, mellow sine tones
+      osc.frequency.setValueAtTime(freq, time);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(650, time);
+
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.linearRampToValueAtTime(0.04, time + 0.35); // very soft attack
+      gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.menuGain!);
+
+      osc.start(time);
+      osc.stop(time + duration + 0.1);
+    });
+  }
+
+  private playCalmChime(time: number, freq: number) {
+    if (!this.ctx || !this.menuGain) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, time);
+
+    gain.gain.setValueAtTime(0.025, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.45);
+
+    osc.connect(gain);
+    gain.connect(this.menuGain);
+    if (this.delayNode) {
+      gain.connect(this.delayNode);
+    }
+
+    osc.start(time);
+    osc.stop(time + 0.5);
+  }
+
+  private playCalmSubBass(time: number, freq: number) {
+    if (!this.ctx || !this.menuGain) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+
+    gain.gain.setValueAtTime(0.001, time);
+    gain.gain.linearRampToValueAtTime(0.06, time + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+
+    osc.connect(gain);
+    gain.connect(this.menuGain);
+
+    osc.start(time);
+    osc.stop(time + 0.65);
   }
 
   // ==============================================================

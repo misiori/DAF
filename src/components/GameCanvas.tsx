@@ -857,7 +857,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     if (countdown === null) {
       // Start level music EXACTLY on the downbeat when countdown completes and game starts
-      sound.startLevelBgm(level.id, level.bpm);
+      const targetSongId = level.songId || (level.customData as any)?.songId || level.id;
+      sound.startLevelBgm(targetSongId, level.bpm);
       return;
     }
     sound.playClick();

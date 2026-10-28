@@ -36,6 +36,7 @@ export interface LevelConfig {
   songTitle: string;
   artist: string;
   bpm: number;
+  songId?: number;
   durationSeconds: number;
   themeColor: string;
   bgColor: string;
