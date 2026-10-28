@@ -335,13 +335,13 @@ export default function App() {
           ...(prevProfile.beaten_level_details || {}),
           [idNum]: {
             difficulty: effectiveDiff,
-            name: curLevel?.name || 'chamber',
+            name: curLevel?.name || 'farm',
             isCustom,
             isRated,
           },
           [String(idNum)]: {
             difficulty: effectiveDiff,
-            name: curLevel?.name || 'chamber',
+            name: curLevel?.name || 'farm',
             isCustom,
             isRated,
           },

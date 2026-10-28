@@ -233,10 +233,11 @@ function drawHandDrawnAnthill(
     return;
   }
 
-  const pulseWobble = Math.sin(hill.pulse * 2.5) * 1.5;
+  // Visual pulse directly coupled to sound.getBeatPulse()
+  const pulseWobble = hill.pulse * (r * 0.22);
 
   ctx.strokeStyle = mainColor;
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 1.8 + hill.pulse * 1.4;
   ctx.beginPath();
   const segments = 24;
   for (let s = 0; s <= segments; s++) {
@@ -254,13 +255,13 @@ function drawHandDrawnAnthill(
   ctx.stroke();
 
   for (let ring = 1; ring <= 3; ring++) {
-    const ringR = r * (0.35 + (ring / 3) * 0.48);
+    const ringR = r * (0.35 + (ring / 3) * 0.48) + hill.pulse * (ring * 1.6);
     ctx.beginPath();
-    ctx.strokeStyle = ring === 3 ? `${mainColor}80` : `${mainColor}4d`;
+    ctx.strokeStyle = ring === 3 ? `${mainColor}90` : `${mainColor}55`;
     ctx.lineWidth = 1.2;
     for (let s = 0; s <= segments; s++) {
       const a = (s / segments) * Math.PI * 2;
-      const wobble = Math.sin(a * 5 + ring + hill.id * 2 + hill.pulse) * 1.5;
+      const wobble = Math.sin(a * 5 + ring + hill.id * 2) * 1.5;
       const px = Math.cos(a) * (ringR + wobble);
       const py = Math.sin(a) * (ringR + wobble);
       if (s === 0) ctx.moveTo(px, py);
@@ -271,14 +272,14 @@ function drawHandDrawnAnthill(
   }
 
   const craterR = Math.max(7, r * 0.28);
-  const rippleDistance = (r - craterR);
-  const rippleFrac = (hill.pulse * 0.4) % 1;
-  const rippleR = craterR + rippleDistance * rippleFrac;
-  ctx.strokeStyle = `${mainColor}66`;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(0, 0, rippleR, 0, Math.PI * 2);
-  ctx.stroke();
+  const rippleR = craterR + (r - craterR) * (1 - hill.pulse);
+  if (hill.pulse > 0.05) {
+    ctx.strokeStyle = `${mainColor}${Math.floor(hill.pulse * 220).toString(16).padStart(2, '0')}`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, rippleR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   ctx.fillStyle = `${mainColor}aa`;
   for (let s = 0; s < 12; s++) {
@@ -847,7 +848,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [onExit]);
 
   useEffect(() => {
-    sound.startLevelBgm(level.id, level.bpm);
     incrementLevelAttempts(level.id, level.customLevelId);
     return () => {
       sound.stopBgm();
@@ -855,23 +855,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [level]);
 
   useEffect(() => {
-    if (countdown === null) return;
-    if (countdown > 1) {
-      sound.playClick();
-      const t = setTimeout(() => {
+    if (countdown === null) {
+      // Start level music EXACTLY on the downbeat when countdown completes and game starts
+      sound.startLevelBgm(level.id, level.bpm);
+      return;
+    }
+    sound.playClick();
+    const t = setTimeout(() => {
+      if (countdown > 1) {
         setCountdown((c) => (c !== null ? c - 1 : null));
         countdownRef.current = (countdownRef.current || 3) - 1;
-      }, 1000);
-      return () => clearTimeout(t);
-    } else if (countdown === 1) {
-      sound.playClick();
-      const t = setTimeout(() => {
+      } else {
         setCountdown(null);
         countdownRef.current = null;
-      }, 1000);
-      return () => clearTimeout(t);
-    }
-  }, [countdown]);
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [countdown, level.id, level.bpm]);
 
   const getSpeedName = (speed: SpeedMultiplier) => {
     if (speed === 0.5) return 'slow';
@@ -966,6 +966,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     setNoclipFailed(false);
     setNoclipHitCount(0);
 
+    sound.stopBgm();
     setCountdown(3);
     countdownRef.current = 3;
 
@@ -1970,8 +1971,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           effectiveDiffKey === 'Harder' ? 1.35 :
           effectiveDiffKey === 'Insane' ? 1.95 : 2.55;
 
+        const beatPulse = sound.getBeatPulse();
         anthillsRef.current.forEach((hill) => {
-          hill.pulse += 0.05 * speedMult;
+          hill.pulse = beatPulse;
 
           const baseR = hill.baseRadius || 19;
           hill.radius = baseR + gameTimeRef.current * secGrowthRate;
@@ -2055,7 +2057,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           antsRef.current.length < HARD_ANT_CAP &&
           isSpawning
         ) {
-          const volleyIndex = Math.floor(gameTimeRef.current / effectiveInterval);
+          // Quantize ant spawns to exact musical beats based on BPM
+          const bpm = level.bpm || 130;
+          const beatDuration = 60 / Math.max(60, bpm * speedMult);
+          const beatsPerVolley = Math.max(1, Math.round(effectiveInterval / beatDuration));
+          const quantizedInterval = beatsPerVolley * beatDuration;
+          const volleyIndex = Math.floor(gameTimeRef.current / quantizedInterval);
 
           if (volleyIndex > lastVolleyIndexRef.current) {
             lastVolleyIndexRef.current = volleyIndex;
@@ -3067,7 +3074,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
               >
-                {(level as any).isVerification ? 'back to editor' : 'chambers'}
+                {(level as any).isVerification ? 'back to editor' : 'farms'}
               </button>
             </div>
           </div>
@@ -3146,7 +3153,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
               >
-                chambers
+                farms
               </button>
             </div>
           </div>
@@ -3157,12 +3164,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
           <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
             <h2 className="text-5xl font-bold font-['Caveat'] text-neutral-100 lowercase mb-2">
-              chamber clear!
+              farm clear!
             </h2>
 
             {(level as any).isVerification ? (
               <div className="text-sm font-['Patrick_Hand'] text-emerald-400 font-bold lowercase mb-4 p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40">
-                ✓ chamber verified 100%! ready to publish in library
+                ✓ farm verified 100%! ready to publish in library
               </div>
             ) : (
               <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-5">
@@ -3221,7 +3228,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }}
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
               >
-                {(level as any).isVerification ? 'back to editor' : 'chambers'}
+                {(level as any).isVerification ? 'back to editor' : 'farms'}
               </button>
             </div>
           </div>

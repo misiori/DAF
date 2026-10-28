@@ -69,7 +69,7 @@ export const ChamberInfoModal: React.FC<ChamberInfoModalProps> = ({ info, onClos
               {diffLabel}
             </span>
             <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase">
-              chamber info
+              farm info
             </span>
           </div>
           <h2 className="font-['Caveat'] text-3xl sm:text-4xl text-neutral-100 font-bold lowercase leading-tight truncate">

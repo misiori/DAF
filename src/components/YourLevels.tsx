@@ -82,7 +82,7 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
     setDeletingLevel(null);
     setIsDeleting(false);
 
-    setFeedbackMsg(`chamber "${target.name}" deleted`);
+    setFeedbackMsg(`farm "${target.name}" deleted`);
     setTimeout(() => setFeedbackMsg(null), 3000);
 
     await deleteCustomLevelDraft(target.id, profile);
@@ -124,13 +124,13 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
         setPublishingId(null);
         if (pubRes.success) {
           sound.playVictory();
-          setFeedbackMsg(`chamber renamed to "${res.level.name}" & republished!`);
+          setFeedbackMsg(`farm renamed to "${res.level.name}" & republished!`);
         } else {
           setFeedbackMsg(`renamed, but publish note: ${pubRes.error}`);
         }
       } else {
         sound.playPowerUpSound();
-        setFeedbackMsg(`chamber renamed to "${res.level.name}". verified status preserved!`);
+        setFeedbackMsg(`farm renamed to "${res.level.name}". verified status preserved!`);
       }
       setTimeout(() => setFeedbackMsg(null), 3500);
       setRenamingLevel(null);
@@ -145,7 +145,7 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
     setPublishingId(null);
     if (res.success) {
       sound.playVictory();
-      setFeedbackMsg(`chamber "${lvl.name}" published to the library!`);
+      setFeedbackMsg(`farm "${lvl.name}" published to the library!`);
       setTimeout(() => setFeedbackMsg(null), 3000);
       loadLevels();
     }
@@ -163,7 +163,7 @@ export const YourLevels: React.FC<YourLevelsProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer font-['Patrick_Hand'] text-base lowercase"
         >
           <ArrowLeft className="w-4 h-4 text-neutral-400" />
-          <span>chambers</span>
+          <span>farms</span>
         </button>
 
         <h1 className="font-['Caveat'] text-3xl sm:text-4xl text-neutral-200 lowercase">

@@ -638,7 +638,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         <div className="pt-2 border-t border-neutral-800">
           <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-2">
-            <span>chambers beaten</span>
+            <span>farms beaten</span>
             <span className="text-sm font-['Patrick_Hand'] font-bold text-white">
               {(() => {
                 const beatenSet = new Set((viewedPlayer.beaten_levels || []).map(Number));
@@ -769,19 +769,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <span>back</span>
               </button>
               <h3 className="font-['Caveat'] text-2xl text-white lowercase">
-                chambers by {viewingPlayerLevels.username}
+                farms by {viewingPlayerLevels.username}
               </h3>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-2.5 pr-1">
               {viewingPlayerLevels.loading ? (
                 <div className="h-40 flex items-center justify-center font-['Patrick_Hand'] text-neutral-500 lowercase">
-                  loading chambers...
+                  loading farms...
                 </div>
               ) : viewingPlayerLevels.levels.length === 0 ? (
                 <div className="h-40 flex flex-col items-center justify-center text-center p-4">
                   <p className="font-['Caveat'] text-2xl text-neutral-400 lowercase">
-                    no chambers published yet
+                    no farms published yet
                   </p>
                 </div>
               ) : (
@@ -852,7 +852,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
                               : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
                           }`}
-                          title={isSaved ? 'saved to chambers' : 'save to chambers'}
+                          title={isSaved ? 'saved to farms' : 'save to farms'}
                         >
                           {isSaved ? (
                             <BookmarkCheck className="w-4 h-4 text-amber-400" />
@@ -1074,11 +1074,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </div>
 
-            {/* Chambers section */}
+            {/* Farms section */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-['Patrick_Hand'] text-base text-neutral-300 lowercase">
-                  chambers beaten
+                  farms beaten
                 </div>
                 <div className="font-['Patrick_Hand'] text-sm text-white font-bold lowercase">
                   {totalChambersBeaten}
@@ -1106,7 +1106,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 ))}
               </div>
 
-              {/* View created chambers button */}
+              {/* View created farms button */}
               <button
                 onClick={async () => {
                   sound.playClick();
@@ -1125,7 +1125,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full mt-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-sm lowercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
               >
                 <Compass className="w-4 h-4 text-cyan-400" />
-                <span>view ur published chambers</span>
+                <span>view ur published farms</span>
               </button>
             </div>
 

@@ -58,7 +58,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const [levelId, setLevelId] = useState(
     initialLevel?.id || `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   );
-  const [name, setName] = useState(initialLevel?.name || 'my chamber');
+  const [name, setName] = useState(initialLevel?.name || 'my farm');
   const [themeColor, setThemeColor] = useState(initialLevel?.themeColor || '#38bdf8');
   const [bgImage, setBgImage] = useState<string | undefined>(
     initialLevel?.bgImage || (initialLevel?.powerUpChances as any)?.bgImage
@@ -161,7 +161,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   // Construct current level object
   const getCurrentLevel = (): CustomLevel => ({
     id: levelId,
-    name: name.trim().toLowerCase() || 'unnamed chamber',
+    name: name.trim().toLowerCase() || 'unnamed farm',
     creatorId: profile.id,
     creatorUsername: profile.username || 'creator',
     creatorAvatarUrl: profile.avatar_url,
@@ -401,7 +401,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
   const handleVerify = async () => {
     sound.playClick();
     if (anthills.length === 0) {
-      setPublishError('place at least 1 anthill to verify your chamber!');
+      setPublishError('place at least 1 anthill to verify your farm!');
       setTimeout(() => setPublishError(null), 3000);
       return;
     }
@@ -428,7 +428,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
       return;
     }
     if (!name.trim()) {
-      setPublishError('please enter a name for your chamber!');
+      setPublishError('please enter a name for your farm!');
       setTimeout(() => setPublishError(null), 3000);
       return;
     }
@@ -442,13 +442,13 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
     if (res.success) {
       setPublished(true);
       sound.playVictory();
-      setPublishMessage('chamber published to the public library!');
+      setPublishMessage('farm published to the public library!');
       setTimeout(() => {
         setPublishMessage(null);
         onBack();
       }, 2000);
     } else {
-      setPublishError(res.error || 'failed to publish chamber');
+      setPublishError(res.error || 'failed to publish farm');
     }
   };
 
@@ -494,7 +494,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
               setName(e.target.value);
             }}
             maxLength={28}
-            placeholder="name ur chamber..."
+            placeholder="name ur farm..."
             className="px-3 py-1 bg-neutral-950 border border-neutral-700 focus:border-white rounded-xl text-center font-['Caveat'] text-2xl sm:text-3xl text-white outline-none lowercase placeholder-neutral-600 transition-all w-48 sm:w-64"
           />
         </div>
@@ -1253,7 +1253,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
           {/* Level Duration */}
           <div className="pt-2 border-t border-neutral-800/80">
             <div className="flex items-center justify-between text-xs font-['Patrick_Hand'] text-neutral-400 lowercase mb-1">
-              <span>chamber duration</span>
+              <span>farm duration</span>
               <span className="text-neutral-200 font-bold">{durationSeconds}s</span>
             </div>
             <input
@@ -1307,7 +1307,7 @@ export const LevelEditor: React.FC<LevelEditorProps> = ({
                 className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-base font-bold transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
               >
                 <Play className="w-4 h-4 fill-neutral-950" />
-                <span>{verified ? 're-verify' : 'verify chamber'}</span>
+                <span>{verified ? 're-verify' : 'verify farm'}</span>
               </button>
 
               <button

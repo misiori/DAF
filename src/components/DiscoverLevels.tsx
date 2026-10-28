@@ -154,7 +154,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer font-['Patrick_Hand'] text-base lowercase"
         >
           <ArrowLeft className="w-4 h-4 text-neutral-400" />
-          <span>chambers</span>
+          <span>farms</span>
         </button>
 
         {/* Switch Button: toggles between discover and saved */}
@@ -189,8 +189,8 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={
               activeTab === 'discover'
-                ? 'search chamber name or creator...'
-                : 'search saved chambers...'
+                ? 'search farm name or creator...'
+                : 'search saved farms...'
             }
             className="w-full pl-9 pr-4 py-1.5 rounded-2xl bg-neutral-950 border border-neutral-800 text-neutral-200 placeholder-neutral-500 font-['Patrick_Hand'] text-base outline-none focus:border-neutral-500 transition-all lowercase"
           />
@@ -244,19 +244,19 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto pr-1 pb-3">
         {loading ? (
           <div className="h-full flex items-center justify-center font-['Patrick_Hand'] text-lg text-neutral-500 lowercase">
-            loading chambers...
+            loading farms...
           </div>
         ) : displayedList.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
             <h3 className="font-['Caveat'] text-3xl text-neutral-400 lowercase">
               {activeTab === 'discover'
-                ? 'no chambers found'
-                : 'no saved chambers yet'}
+                ? 'no farms found'
+                : 'no saved farms yet'}
             </h3>
             <p className="font-['Patrick_Hand'] text-sm text-neutral-500 lowercase">
               {activeTab === 'discover'
-                ? 'be the first to create and publish a chamber!'
-                : 'save chambers from the discover feed to play them anytime!'}
+                ? 'be the first to create and publish a farm!'
+                : 'save farms from the discover feed to play them anytime!'}
             </p>
           </div>
         ) : (
@@ -304,7 +304,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                             });
                           }}
                           className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
-                          title="chamber info"
+                          title="farm info"
                         >
                           <Info className="w-3.5 h-3.5" />
                         </button>
@@ -365,7 +365,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                       <span>play</span>
                     </button>
 
-                    {/* Save to chambers */}
+                    {/* Save to farms */}
                     <button
                       onClick={() => handleToggleSave(lvl.id)}
                       className={`p-2 rounded-xl border transition-all cursor-pointer ${
@@ -373,7 +373,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
                           : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border-neutral-800'
                       }`}
-                      title={isSaved ? 'remove from saved' : 'save to chambers'}
+                      title={isSaved ? 'remove from saved' : 'save to farms'}
                     >
                       {isSaved ? (
                         <BookmarkCheck className="w-4 h-4 text-amber-400" />
@@ -398,7 +398,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
                         <button
                           onClick={() => handleDeleteClick(lvl)}
                           className="p-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-400 border border-rose-800/80 transition-colors cursor-pointer"
-                          title={isMisiori ? '@misiori: delete chamber' : 'delete your chamber'}
+                          title={isMisiori ? '@misiori: delete farm' : 'delete your farm'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -431,11 +431,11 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
               <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
                 <div>
                   <h3 className="font-['Caveat'] text-3xl text-neutral-100 lowercase">
-                    {isMisiori ? 'delete chamber as @misiori?' : 'delete chamber?'}
+                    {isMisiori ? 'delete farm as @misiori?' : 'delete farm?'}
                   </h3>
                   {isMisiori && (
                     <p className="text-xs font-['Patrick_Hand'] text-rose-400 lowercase">
-                      inappropriate chamber moderation
+                      inappropriate farm moderation
                     </p>
                   )}
                 </div>
@@ -494,7 +494,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-['Caveat'] text-2xl text-white lowercase">
-                    rate chamber difficulty
+                    rate farm difficulty
                   </h3>
                   <p className="text-xs font-['Patrick_Hand'] text-sky-300 lowercase">
                     @misiori verified rating
@@ -509,7 +509,7 @@ export const DiscoverLevels: React.FC<DiscoverLevelsProps> = ({
               </div>
 
               <p className="text-sm font-['Patrick_Hand'] text-neutral-300 lowercase">
-                chamber: <span className="text-white font-bold">{ratingLevel.name}</span>
+                farm: <span className="text-white font-bold">{ratingLevel.name}</span>
               </p>
 
               <div className="grid grid-cols-2 gap-2">

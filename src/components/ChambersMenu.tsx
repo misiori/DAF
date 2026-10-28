@@ -242,7 +242,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[255px_15px_225px_15px/15px_225px_15px_255px] bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-700/70 hover:border-neutral-400 text-neutral-300 hover:text-white transition-all cursor-pointer font-['Patrick_Hand'] text-base lowercase"
           >
             <ArrowLeft className="w-4 h-4 text-neutral-400" />
-            <span>chambers</span>
+            <span>farms</span>
           </button>
 
           <div className="font-['Caveat'] text-3xl sm:text-4xl text-neutral-200 lowercase">
@@ -345,8 +345,8 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                       sound.playHitSound();
                       setFeedbackToast(
                         lvl.id === 999
-                          ? 'beat all 23 official chambers to unlock free mode!'
-                          : `chamber #${lvl.id} is locked! beat chamber #${lvl.id - 1} first.`
+                          ? 'beat all 23 official farms to unlock free mode!'
+                          : `farm #${lvl.id} is locked! beat farm #${lvl.id - 1} first.`
                       );
                       setTimeout(() => setFeedbackToast(null), 3200);
                       return;
@@ -386,7 +386,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                               });
                             }}
                             className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-                            title="chamber info"
+                            title="farm info"
                           >
                             <Info className="w-3.5 h-3.5" />
                           </button>
@@ -477,7 +477,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
                     }}
                     className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-lg font-bold shadow-md cursor-pointer hover:scale-105 transition-all"
                   >
-                    start chamber
+                    start farm
                   </button>
                   <button
                     onClick={() => setShowOfficialModal(false)}
@@ -530,7 +530,7 @@ export const ChambersMenu: React.FC<ChambersMenuProps> = ({
         </button>
 
         <h1 className="font-['Caveat'] text-4xl sm:text-5xl text-neutral-100 lowercase">
-          chambers
+          farms
         </h1>
 
         <div className="w-20" />
