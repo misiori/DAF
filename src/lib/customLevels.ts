@@ -32,6 +32,7 @@ export interface PowerUpChances {
   bgImage?: string;
   bgOpacity?: number;
   musicTrackId?: string;
+  songId?: number;
   songTitle?: string;
   artist?: string;
   songUrl?: string;
@@ -60,6 +61,7 @@ export interface CustomLevel {
   bgImage?: string;
   bgOpacity?: number;
   musicTrackId?: string;
+  songId?: number;
   songTitle?: string;
   artist?: string;
   songUrl?: string;

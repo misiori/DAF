@@ -18,7 +18,7 @@ import { getSkinById } from './SkinRenderer';
 import { drawPlayerSkin } from './canvasSkinDrawer';
 import { sound } from '../lib/audio';
 import { DIFFICULTY_COLORS, DIFFICULTY_ANT_SCALING } from '../lib/constants';
-import { RotateCcw, Box, Shield, Zap, Sparkles } from 'lucide-react';
+import { RotateCcw, Box, Shield, Zap, Sparkles, Trophy } from 'lucide-react';
 import { saveDraftLevel, getLocalUserDrafts, getDifficultyFormations, isLevelRated } from '../lib/customLevels';
 import { incrementLevelAttempts } from '../lib/attempts';
 
@@ -641,6 +641,187 @@ function drawMainScreenStyleAnt(
   ctx.restore();
 }
 
+interface SatisfyingLostModalProps {
+  score: number;
+  prevBest: number;
+  progress: number;
+  sugarCollected: number;
+  isRated: boolean;
+  isVerification: boolean;
+  onRetry: () => void;
+  onExit: () => void;
+}
+
+const SatisfyingLostModal: React.FC<SatisfyingLostModalProps> = ({
+  score,
+  prevBest,
+  progress,
+  sugarCollected,
+  isRated,
+  isVerification,
+  onRetry,
+  onExit,
+}) => {
+  const isNewBest = score > prevBest && score > 0;
+  const [displayScore, setDisplayScore] = useState<number>(score > 0 ? 1 : 0);
+  const [scale, setScale] = useState<number>(0.7);
+
+  useEffect(() => {
+    if (score <= 1) {
+      setDisplayScore(score);
+      setScale(1.0);
+      return;
+    }
+
+    let start: number | null = null;
+    const duration = 1200; // 1.2s smooth count-up
+    let lastSound = 0;
+    let animId: number;
+
+    const tick = (now: number) => {
+      if (!start) start = now;
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / duration);
+
+      // Ease out cubic for satisfying deceleration into the final score
+      const ease = 1 - Math.pow(1 - t, 3);
+      const cur = Math.max(1, Math.round(1 + (score - 1) * ease));
+      setDisplayScore(cur);
+
+      // Pulsing scale animation that dynamically scales up from 0.7 to 1.18 then settles gently at 1.0
+      const s = t < 1
+        ? 0.75 + 0.35 * Math.sin(t * Math.PI * 3.5) * (1 - t * 0.45) + t * 0.25
+        : 1.0;
+      setScale(s);
+
+      if (now - lastSound > 60 && t < 0.95) {
+        sound.playClick();
+        lastSound = now;
+      }
+
+      if (t < 1) {
+        animId = requestAnimationFrame(tick);
+      } else {
+        setDisplayScore(score);
+        setScale(1.0);
+        if (isNewBest) {
+          sound.playVictory();
+        } else {
+          sound.playSugarCollect();
+        }
+      }
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, [score, isNewBest]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default select-none animate-in fade-in duration-200">
+      <div className="relative w-full max-w-sm bg-neutral-900 border-2 border-neutral-700/90 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
+        {/* Prominently announce NEW BEST first if it is a new high score */}
+        {isNewBest ? (
+          <div className="mb-4">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-['Patrick_Hand'] text-base tracking-wide shadow-[0_0_15px_rgba(251,191,36,0.25)] animate-bounce mb-3">
+              <Trophy className="w-4 h-4 text-amber-300 fill-amber-300/30" />
+              <span>new best!</span>
+            </div>
+            <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-1">
+              u earned
+            </div>
+            <div
+              className="font-['Caveat'] font-bold text-5xl sm:text-6xl text-amber-300 tracking-tight transition-transform inline-block origin-center drop-shadow-[0_0_22px_rgba(251,191,36,0.35)]"
+              style={{ transform: `scale(${scale})` }}
+            >
+              {displayScore.toLocaleString()} pts!
+            </div>
+            <div className="text-xs sm:text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mt-2">
+              beat previous: {prevBest.toLocaleString()} pts • progress: {Math.round(progress)}%
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-1">
+              u earned
+            </div>
+            <div
+              className="font-['Caveat'] font-bold text-5xl sm:text-6xl text-neutral-100 tracking-tight transition-transform inline-block origin-center"
+              style={{ transform: `scale(${scale})` }}
+            >
+              {displayScore.toLocaleString()} pts!
+            </div>
+            <div className="text-xs sm:text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mt-2 flex items-center justify-center gap-2">
+              <span className="text-rose-400 font-bold">u lost!</span>
+              <span>•</span>
+              <span>progress: {Math.round(progress)}%</span>
+              {prevBest > 0 && (
+                <>
+                  <span>•</span>
+                  <span>best: {prevBest.toLocaleString()} pts</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-2.5 mb-6">
+          <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+            <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">points</span>
+            <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
+              {displayScore.toLocaleString()}
+            </span>
+            {!isRated && (
+              <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                unrated
+              </span>
+            )}
+          </div>
+          <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
+            <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar cubes</span>
+            <span className="text-xl font-bold font-['Patrick_Hand'] text-white flex items-center justify-center gap-1">
+              <Box className="w-4 h-4 text-white" />
+              +{isRated ? sugarCollected : 0}
+            </span>
+            {!isRated && (
+              <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
+                unrated
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              sound.playClick();
+              onRetry();
+            }}
+            className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-lg font-bold transition-all cursor-pointer shadow-md hover:scale-105 flex items-center justify-center gap-2 select-none"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>try again</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              sound.playClick();
+              sound.stopBgm();
+              onExit();
+            }}
+            className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700 select-none"
+          >
+            {isVerification ? 'back to editor' : 'farms'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   level,
   profile,
@@ -717,6 +898,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const countdownRef = useRef<number | null>(3);
   const speedMultiplierRef = useRef<SpeedMultiplier>(1.0);
   const scoreRef = useRef(0);
+  const initialHighScoreRef = useRef(profile.high_scores[level.id] || profile.high_scores[String(level.id)] || 0);
   const healthRef = useRef(3);
   const sugarRef = useRef(0);
   const bonusShieldsAwardedRef = useRef(0);
@@ -944,6 +1126,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     scoreRef.current = 0;
     setScore(0);
+    initialHighScoreRef.current = profile.high_scores[level.id] || profile.high_scores[String(level.id)] || 0;
     healthRef.current = 3;
     setHealth(3);
     sugarRef.current = 0;
@@ -3014,72 +3197,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       )}
 
       {gameState === 'lost' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-default">
-          <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-[255px_20px_225px_25px/25px_225px_20px_255px] p-6 sm:p-7 text-center shadow-2xl">
-            <h2 className="text-5xl font-bold font-['Caveat'] text-neutral-100 lowercase mb-2">
-              u lost!
-            </h2>
-
-            <div className="text-sm font-['Patrick_Hand'] text-neutral-400 lowercase mb-5">
-              progress: {Math.round(progress)}%
-            </div>
-
-            {(() => {
-              const isRated = isLevelRated(level);
-              return (
-                <div className="grid grid-cols-2 gap-2.5 mb-6">
-                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">pts</span>
-                    <span className="text-xl font-bold font-['Patrick_Hand'] text-neutral-100">
-                      {score.toLocaleString()}
-                    </span>
-                    {!isRated && (
-                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
-                        unrated (not added to acc)
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800">
-                    <span className="text-xs font-['Patrick_Hand'] text-neutral-500 lowercase block">sugar</span>
-                    <span className="text-xl font-bold font-['Patrick_Hand'] text-white flex items-center justify-center gap-1">
-                      <Box className="w-4 h-4 text-white" />
-                      +{isRated ? sugarCollected : 0}
-                    </span>
-                    {!isRated && (
-                      <span className="text-[10px] font-['Patrick_Hand'] text-neutral-500 lowercase block mt-0.5">
-                        unrated (not added to acc)
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="space-y-2.5">
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  initLevel();
-                }}
-                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-100 hover:bg-white text-neutral-950 font-['Patrick_Hand'] text-lg font-bold transition-all cursor-pointer shadow-md hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>try again</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  sound.stopBgm();
-                  onExit();
-                }}
-                className="w-full py-2.5 rounded-[220px_15px_200px_18px/15px_220px_18px_200px] bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white font-['Patrick_Hand'] text-base transition-all cursor-pointer border border-neutral-700"
-              >
-                {(level as any).isVerification ? 'back to editor' : 'farms'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SatisfyingLostModal
+          score={score}
+          prevBest={initialHighScoreRef.current}
+          progress={progress}
+          sugarCollected={sugarCollected}
+          isRated={isLevelRated(level)}
+          isVerification={Boolean((level as any).isVerification)}
+          onRetry={() => {
+            initLevel();
+          }}
+          onExit={() => {
+            onExit();
+          }}
+        />
       )}
 
       {noclipFailed && (

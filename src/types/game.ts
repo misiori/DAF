@@ -55,6 +55,7 @@ export interface LevelConfig {
   customLevelId?: string;
   customPowerUps?: CustomPowerUpPlacement[];
   customSpeedPortals?: CustomSpeedPortalPlacement[];
+  customData?: any;
 }
 
 export type SpeedMultiplier = 0.5 | 1.0 | 1.5 | 2.0;
